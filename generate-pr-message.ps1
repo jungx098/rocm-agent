@@ -95,12 +95,13 @@ $deletions    = $pr.deletions
 $changedFiles = $pr.changed_files
 $body         = if ($pr.body) { $pr.body } else { "(no description provided)" }
 
-# --- Read template ---
-$scriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
-$templatePath = Join-Path $scriptDir "pr_msg.template.md"
-if (Test-Path $templatePath) {
-    $template = Get-Content -Path $templatePath -Raw
-} else {
+# --- Fetch PR template from the repo ---
+$templateUrl = "https://raw.githubusercontent.com/$owner/$repo/$baseBranch/.github/pull_request_template.md"
+Write-Host "Fetching PR template from $owner/$repo ($baseBranch) ..." -ForegroundColor Cyan
+try {
+    $template = Invoke-RestMethod -Uri $templateUrl -Headers @{ "User-Agent" = "PR-Message-Generator" } -Method Get
+} catch {
+    Write-Warning "Could not fetch PR template from repo, using built-in fallback."
     $template = @"
 ## Motivation
 ## Technical Details
