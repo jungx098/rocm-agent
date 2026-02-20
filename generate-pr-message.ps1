@@ -145,15 +145,11 @@ $template
 # --- Call agent ---
 Write-Host "Generating PR message via $Agent ..." -ForegroundColor Cyan
 
-$tempFile = [System.IO.Path]::GetTempFileName()
 try {
-    $prompt | Out-File -FilePath $tempFile -Encoding utf8
-    $message = Get-Content -Path $tempFile -Raw | & $Agent chat
+    $message = $prompt | & $Agent chat
 } catch {
     Write-Error "Agent call failed: $_"
     exit 1
-} finally {
-    Remove-Item -Path $tempFile -ErrorAction SilentlyContinue
 }
 
 # --- Output ---
