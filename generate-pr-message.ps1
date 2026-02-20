@@ -115,7 +115,7 @@ try {
 
 # --- Build prompt ---
 $prompt = @"
-See this PR and fill the template below to create a PR message.
+Fill the template below to create a PR message. Be brief and concise — use short sentences, no filler, no repetition. Each section should be 1-3 sentences or a short bullet list at most.
 
 # PR Information
 
