@@ -1,18 +1,23 @@
 <#
 .SYNOPSIS
-    Generates a commit message from the current staged changes using an AI agent.
+    Generates a commit message from staged changes or an existing commit using an AI agent.
 .USAGE
-    .\generate-commit-message.ps1 [-OutputFile <path>] [-Agent <command>] [-MaxDiffLength <int>]
+    .\generate-commit-message.ps1 [<CommitHash>] [-OutputFile <path>] [-Agent <command>] [-MaxDiffLength <int>]
 .EXAMPLE
     .\generate-commit-message.ps1
+    .\generate-commit-message.ps1 abc1234
+    .\generate-commit-message.ps1 HEAD~1
     .\generate-commit-message.ps1 -OutputFile commit-msg.txt
-    .\generate-commit-message.ps1 -Agent "cursor-agent"
+    .\generate-commit-message.ps1 abc1234 -OutputFile commit-msg.txt -Agent "cursor-agent"
 .NOTES
     Requires agent.cmd (or the command specified by -Agent) to be available in PATH.
-    Must be run from within a git repository with staged changes.
+    Must be run from within a git repository. When no commit hash is given, staged changes are used.
 #>
 
 param(
+    [Parameter(Mandatory=$false, Position=0)]
+    [string]$CommitHash,
+
     [Parameter(Mandatory=$false)]
     [string]$OutputFile,
 
@@ -41,28 +46,61 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# --- Check for staged changes ---
-$stagedDiff = git diff --cached
-if (-not $stagedDiff) {
-    Write-Error "No staged changes found. Stage files with 'git add' first."
-    exit 1
+# --- Resolve source: existing commit or staged changes ---
+if ($CommitHash) {
+    $resolved = git rev-parse --verify "$CommitHash" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Invalid commit reference: $CommitHash"
+        exit 1
+    }
+    $mode = "commit"
+    $sourceLabel = "commit $($resolved.Substring(0,8))"
+} else {
+    $stagedCheck = git diff --cached --quiet 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Error "No staged changes found. Stage files with 'git add' first, or pass a commit hash."
+        exit 1
+    }
+    $mode = "staged"
+    $sourceLabel = "staged changes"
 }
 
 # --- Gather context ---
-Write-Host "Collecting staged changes ..." -ForegroundColor Cyan
+Write-Host "Collecting $sourceLabel ..." -ForegroundColor Cyan
 
-$stat = git diff --cached --stat
-$fileList = git diff --cached --name-status | ForEach-Object {
-    $parts = $_ -split "`t", 2
-    $status = switch ($parts[0]) {
-        "A" { "added" }
-        "M" { "modified" }
-        "D" { "deleted" }
-        "R" { "renamed" }
-        "C" { "copied" }
-        default { $parts[0] }
+if ($mode -eq "commit") {
+    $diff = git diff "$CommitHash~1" "$CommitHash"
+    $stat = git diff "$CommitHash~1" "$CommitHash" --stat
+    $fileList = git diff "$CommitHash~1" "$CommitHash" --name-status | ForEach-Object {
+        $parts = $_ -split "`t", 2
+        $status = switch ($parts[0]) {
+            "A" { "added" }
+            "M" { "modified" }
+            "D" { "deleted" }
+            "R" { "renamed" }
+            "C" { "copied" }
+            default { $parts[0] }
+        }
+        "$status`: $($parts[1])"
     }
-    "$status`: $($parts[1])"
+    $existingMsg = git log -1 --format="%B" "$CommitHash"
+    $existingMsg = ($existingMsg | Out-String).Trim()
+} else {
+    $diff = git diff --cached
+    $stat = git diff --cached --stat
+    $fileList = git diff --cached --name-status | ForEach-Object {
+        $parts = $_ -split "`t", 2
+        $status = switch ($parts[0]) {
+            "A" { "added" }
+            "M" { "modified" }
+            "D" { "deleted" }
+            "R" { "renamed" }
+            "C" { "copied" }
+            default { $parts[0] }
+        }
+        "$status`: $($parts[1])"
+    }
+    $existingMsg = $null
 }
 $fileList = $fileList -join "`n"
 
@@ -72,25 +110,42 @@ if (-not $branch) { $branch = "(detached HEAD)" }
 $recentLog = git log --oneline -10 2>$null
 $recentLog = if ($recentLog) { $recentLog -join "`n" } else { "(no commits yet)" }
 
-if ($stagedDiff.Length -gt $MaxDiffLength) {
-    $stagedDiff = $stagedDiff.Substring(0, $MaxDiffLength) + "`n... [diff truncated at $MaxDiffLength chars] ..."
+if ($diff.Length -gt $MaxDiffLength) {
+    $diff = $diff.Substring(0, $MaxDiffLength) + "`n... [diff truncated at $MaxDiffLength chars] ..."
 }
 
 # --- Build prompt ---
+$existingMsgSection = if ($existingMsg) {
+    @"
+
+## Existing Commit Message
+
+$existingMsg
+"@
+} else { "" }
+
 $prompt = @"
-Generate a concise git commit message for the following staged changes. Follow the Conventional Commits format: <type>(<optional scope>): <description>
+Generate a git commit message. Format:
+
+<type>: <short description>
+
+- bullet 1
+- bullet 2
 
 Rules:
 - type is one of: feat, fix, refactor, docs, test, chore, style, perf, ci, build
-- The description should be lowercase, imperative mood, no period at the end
-- If the change is complex, add a blank line after the subject and then a short body (2-5 bullet points max)
-- Keep the subject line under 72 characters
+- Subject line: capitalize first letter, imperative mood, no period, max 50 characters
+- Body: 1-3 short bullet points summarizing key changes, separated from subject by a blank line
+- Wrap body lines at 72 characters; break mid-sentence if needed to stay within the limit
+- Output ONLY the commit message, nothing else — no explanation, no quotes, no markdown fences
 
 # Context
 
+- Source: $sourceLabel
 - Branch: $branch
 - Recent commits (for style reference):
 $recentLog
+$existingMsgSection
 
 ## Changed Files
 
@@ -102,14 +157,15 @@ $stat
 
 ## Full Diff
 
-$stagedDiff
+$diff
 "@
 
 # --- Call agent ---
 Write-Host "Generating commit message via $Agent ..." -ForegroundColor Cyan
 
 try {
-    $message = $prompt | & $Agent chat
+    $raw = $prompt | & $Agent chat
+    $message = if ($raw -is [array]) { $raw -join "`n" } else { "$raw" }
 } catch {
     Write-Error "Agent call failed: $_"
     exit 1
@@ -119,7 +175,7 @@ try {
 Write-Host ""
 Write-Host "--- Commit Message ---" -ForegroundColor Green
 Write-Host ""
-Write-Host $message
+$message -split "`n" | ForEach-Object { Write-Host $_ }
 
 if ($OutputFile) {
     $message | Out-File -FilePath $OutputFile -Encoding utf8
