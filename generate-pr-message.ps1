@@ -115,11 +115,21 @@ try {
 
 # --- Build prompt ---
 $prompt = @"
-Fill the template below to create a PR message. Be brief and concise — use short sentences, no filler, no repetition. Each section should be 1-3 sentences or a short bullet list at most.
+Generate a PR title and fill the template below.
+
+For the title:
+- Start with a type prefix: feat, fix, refactor, docs, test, chore, style, perf, ci, build
+- Format: <type>: <short description>
+- Capitalize first letter of description, imperative mood, no period, max 72 characters
+- Output the title on the first line, then a blank line, then the filled template
+
+For the body:
+- Be brief and concise — use short sentences, no filler, no repetition
+- Each section should be 1-3 sentences or a short bullet list at most
 
 # PR Information
 
-- Title: $title
+- Current Title: $title
 - Author: @$author
 - Branch: $headBranch -> $baseBranch
 - Changed files: $changedFiles (+$additions/-$deletions)
@@ -153,11 +163,20 @@ try {
     exit 1
 }
 
+# --- Split title and body ---
+$lines = $message -split "`n"
+$prTitle = $lines[0].Trim()
+$prBody = ($lines | Select-Object -Skip 1) -join "`n"
+$prBody = $prBody.TrimStart("`n")
+
 # --- Output ---
 Write-Host ""
-Write-Host "--- PR Message ---" -ForegroundColor Green
+Write-Host "--- PR Title ---" -ForegroundColor Green
+Write-Host $prTitle
 Write-Host ""
-$message -split "`n" | ForEach-Object { Write-Host $_ }
+Write-Host "--- PR Body ---" -ForegroundColor Green
+Write-Host ""
+$prBody -split "`n" | ForEach-Object { Write-Host $_ }
 
 if ($OutputFile) {
     $message | Out-File -FilePath $OutputFile -Encoding utf8

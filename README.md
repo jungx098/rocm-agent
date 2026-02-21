@@ -69,7 +69,7 @@ generate-commit-message.cmd [COMMIT_HASH] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DI
 
 ### generate-pr-message
 
-Fetches a GitHub pull request (metadata, file list, diff), retrieves the repo's PR template, and passes everything to the AI agent to produce a filled-in PR message.
+Fetches a GitHub pull request (metadata, file list, diff), retrieves the repo's PR template, and passes everything to the AI agent to produce a PR title and filled-in PR body.
 
 ```powershell
 .\generate-pr-message.ps1 <PR_URL> [-OutputFile <path>] [-Agent <command>] [-MaxDiffLength <int>]
@@ -116,7 +116,7 @@ generate-pr-message.cmd <PR_URL> [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH
 2. Fetches PR metadata, changed file list, and diff via the GitHub API.
 3. Fetches the repo's `.github/pull_request_template.md` from the PR's base branch.
 4. Builds a prompt with all the context and pipes it to the AI agent.
-5. Outputs the generated message to the console and copies it to the clipboard (or saves to a file with `-o`).
+5. Outputs a PR title (first line) and body (filled template) to the console and copies to the clipboard (or saves to a file with `-o`).
 
 ## Options
 
