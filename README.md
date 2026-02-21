@@ -12,32 +12,34 @@ AI-powered git workflow tools. Generate PR messages from GitHub pull requests or
 
 ### ai-commit
 
-Generates an AI commit message from staged changes, then opens the git core editor pre-filled with the message so you can review and edit before committing.
+Generates an AI commit message from staged changes (or the last commit with `--amend`), then opens the git core editor pre-filled with the message so you can review and edit before committing.
 
 ```powershell
-.\ai-commit.ps1 [-Agent <command>] [-MaxDiffLength <int>]
-./ai-commit.sh [-a AGENT] [-m MAX_DIFF_LENGTH]
-ai-commit.cmd [-a AGENT] [-m MAX_DIFF_LENGTH]
+.\ai-commit.ps1 [-Amend] [-Agent <command>] [-MaxDiffLength <int>]
+./ai-commit.sh [--amend] [-a AGENT] [-m MAX_DIFF_LENGTH]
+ai-commit.cmd [--amend] [-a AGENT] [-m MAX_DIFF_LENGTH]
 ```
 
 **Examples:**
 
 ```powershell
 .\ai-commit.ps1
+.\ai-commit.ps1 -Amend
 .\ai-commit.ps1 -Agent "cursor-agent"
 ```
 
 ```bash
 ./ai-commit.sh
+./ai-commit.sh --amend
 ./ai-commit.sh -a cursor-agent
 ```
 
 ### generate-commit-message
 
-Generates a commit message from staged changes or an existing commit. Outputs to clipboard by default, or to a file with `-o`.
+Generates a commit message from staged changes, an existing commit, or an amend scenario. Outputs to clipboard by default, or to a file with `-o`.
 
 ```powershell
-.\generate-commit-message.ps1 [<CommitHash>] [-OutputFile <path>] [-Agent <command>] [-MaxDiffLength <int>]
+.\generate-commit-message.ps1 [<CommitHash>] [-Amend] [-OutputFile <path>] [-Agent <command>] [-MaxDiffLength <int>]
 ./generate-commit-message.sh [COMMIT_HASH] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH]
 generate-commit-message.cmd [COMMIT_HASH] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH]
 ```
@@ -51,6 +53,9 @@ generate-commit-message.cmd [COMMIT_HASH] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DI
 # From an existing commit
 .\generate-commit-message.ps1 abc1234
 .\generate-commit-message.ps1 HEAD~1
+
+# Amend mode (HEAD changes + staged changes combined)
+.\generate-commit-message.ps1 -Amend
 
 # Save to file
 .\generate-commit-message.ps1 -OutputFile commit-msg.txt
@@ -90,14 +95,17 @@ generate-pr-message.cmd <PR_URL> [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH
 
 ### ai-commit
 
-1. Verifies staged changes exist.
+1. Verifies staged changes exist (or HEAD exists when `--amend` is used).
 2. Calls `generate-commit-message` to produce a message (written to a temp file).
-3. Runs `git commit -e -F <tempfile>` to open the git editor pre-filled with the message.
+3. Runs `git commit -e -F <tempfile>` (or `git commit --amend -e -F <tempfile>`) to open the git editor pre-filled with the message.
 4. Cleans up the temp file.
 
 ### generate-commit-message
 
-1. Collects the staged diff (or diff of a given commit against its parent).
+1. Collects the diff based on mode:
+   - **staged** (default) — `git diff --cached`
+   - **commit** — `git diff HASH~1 HASH` for a specific commit
+   - **amend** — `git diff --cached HEAD~1` (HEAD changes + staged changes combined)
 2. Gathers branch name, file list, diff stats, and recent commit log for style context.
 3. Builds a prompt and pipes it to the AI agent.
 4. Outputs the message following Conventional Commits format (50-char subject, 72-char body wrap).
@@ -114,6 +122,7 @@ generate-pr-message.cmd <PR_URL> [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH
 
 | Option | PowerShell | sh / cmd | Default | Description |
 |--------|-----------|----------|---------|-------------|
+| Amend | `-Amend` | `--amend` | _(off)_ | Rewrite last commit; diff covers HEAD + staged changes |
 | Commit hash | `<CommitHash>` (positional) | positional arg | _(staged changes)_ | Target a specific commit instead of staged changes |
 | Output file | `-OutputFile` | `-o` | _(clipboard)_ | Save output to a file instead of clipboard |
 | Agent command | `-Agent` | `-a` | `agent.cmd` | AI agent CLI to use |
