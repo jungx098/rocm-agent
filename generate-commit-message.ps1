@@ -166,6 +166,7 @@ Write-Host "Generating commit message via $Agent ..." -ForegroundColor Cyan
 try {
     $raw = $prompt | & $Agent chat
     $message = if ($raw -is [array]) { $raw -join "`n" } else { "$raw" }
+    $message = $message -replace "`r`n", "`n" -replace "`r", "`n"
 } catch {
     Write-Error "Agent call failed: $_"
     exit 1
@@ -178,7 +179,9 @@ Write-Host ""
 $message -split "`n" | ForEach-Object { Write-Host $_ }
 
 if ($OutputFile) {
-    $message | Out-File -FilePath $OutputFile -Encoding utf8
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    $outPath = [System.IO.Path]::GetFullPath($OutputFile)
+    [System.IO.File]::WriteAllText($outPath, ($message + [char]10), $utf8NoBom)
     Write-Host ""
     Write-Host "Saved to $OutputFile" -ForegroundColor Yellow
 } else {
