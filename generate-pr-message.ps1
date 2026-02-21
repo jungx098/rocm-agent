@@ -146,7 +146,8 @@ $template
 Write-Host "Generating PR message via $Agent ..." -ForegroundColor Cyan
 
 try {
-    $message = $prompt | & $Agent chat
+    $raw = $prompt | & $Agent chat
+    $message = if ($raw -is [array]) { $raw -join "`n" } else { "$raw" }
 } catch {
     Write-Error "Agent call failed: $_"
     exit 1
@@ -156,7 +157,7 @@ try {
 Write-Host ""
 Write-Host "--- PR Message ---" -ForegroundColor Green
 Write-Host ""
-Write-Host $message
+$message -split "`n" | ForEach-Object { Write-Host $_ }
 
 if ($OutputFile) {
     $message | Out-File -FilePath $OutputFile -Encoding utf8
