@@ -1,22 +1,26 @@
 <#
 .SYNOPSIS
-    Generates a commit message from staged changes or an existing commit using an AI agent.
+    Generates a commit message from staged changes, an existing commit, or an amend scenario using an AI agent.
 .USAGE
-    .\generate-commit-message.ps1 [<CommitHash>] [-OutputFile <path>] [-Agent <command>] [-MaxDiffLength <int>]
+    .\generate-commit-message.ps1 [<CommitHash>] [-Amend] [-OutputFile <path>] [-Agent <command>] [-MaxDiffLength <int>]
 .EXAMPLE
     .\generate-commit-message.ps1
     .\generate-commit-message.ps1 abc1234
     .\generate-commit-message.ps1 HEAD~1
+    .\generate-commit-message.ps1 -Amend
     .\generate-commit-message.ps1 -OutputFile commit-msg.txt
-    .\generate-commit-message.ps1 abc1234 -OutputFile commit-msg.txt -Agent "cursor-agent"
 .NOTES
     Requires agent.cmd (or the command specified by -Agent) to be available in PATH.
     Must be run from within a git repository. When no commit hash is given, staged changes are used.
+    With -Amend, the diff covers HEAD~1 to the current index (HEAD changes + staged changes combined).
 #>
 
 param(
     [Parameter(Mandatory=$false, Position=0)]
     [string]$CommitHash,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$Amend,
 
     [Parameter(Mandatory=$false)]
     [string]$OutputFile,
@@ -46,8 +50,16 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# --- Resolve source: existing commit or staged changes ---
-if ($CommitHash) {
+# --- Resolve source mode ---
+if ($Amend) {
+    git rev-parse --verify HEAD 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "No commits to amend."
+        exit 1
+    }
+    $mode = "amend"
+    $sourceLabel = "amend HEAD (HEAD changes + staged)"
+} elseif ($CommitHash) {
     $resolved = git rev-parse --verify "$CommitHash" 2>&1
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Invalid commit reference: $CommitHash"
@@ -68,38 +80,36 @@ if ($CommitHash) {
 # --- Gather context ---
 Write-Host "Collecting $sourceLabel ..." -ForegroundColor Cyan
 
-if ($mode -eq "commit") {
+$parseFileStatus = {
+    param($line)
+    $parts = $line -split "`t", 2
+    $status = switch ($parts[0]) {
+        "A" { "added" }
+        "M" { "modified" }
+        "D" { "deleted" }
+        "R" { "renamed" }
+        "C" { "copied" }
+        default { $parts[0] }
+    }
+    "$status`: $($parts[1])"
+}
+
+if ($mode -eq "amend") {
+    $diff = git diff --cached HEAD~1
+    $stat = git diff --cached HEAD~1 --stat
+    $fileList = git diff --cached HEAD~1 --name-status | ForEach-Object { & $parseFileStatus $_ }
+    $existingMsg = git log -1 --format="%B" HEAD
+    $existingMsg = ($existingMsg | Out-String).Trim()
+} elseif ($mode -eq "commit") {
     $diff = git diff "$CommitHash~1" "$CommitHash"
     $stat = git diff "$CommitHash~1" "$CommitHash" --stat
-    $fileList = git diff "$CommitHash~1" "$CommitHash" --name-status | ForEach-Object {
-        $parts = $_ -split "`t", 2
-        $status = switch ($parts[0]) {
-            "A" { "added" }
-            "M" { "modified" }
-            "D" { "deleted" }
-            "R" { "renamed" }
-            "C" { "copied" }
-            default { $parts[0] }
-        }
-        "$status`: $($parts[1])"
-    }
+    $fileList = git diff "$CommitHash~1" "$CommitHash" --name-status | ForEach-Object { & $parseFileStatus $_ }
     $existingMsg = git log -1 --format="%B" "$CommitHash"
     $existingMsg = ($existingMsg | Out-String).Trim()
 } else {
     $diff = git diff --cached
     $stat = git diff --cached --stat
-    $fileList = git diff --cached --name-status | ForEach-Object {
-        $parts = $_ -split "`t", 2
-        $status = switch ($parts[0]) {
-            "A" { "added" }
-            "M" { "modified" }
-            "D" { "deleted" }
-            "R" { "renamed" }
-            "C" { "copied" }
-            default { $parts[0] }
-        }
-        "$status`: $($parts[1])"
-    }
+    $fileList = git diff --cached --name-status | ForEach-Object { & $parseFileStatus $_ }
     $existingMsg = $null
 }
 $fileList = $fileList -join "`n"

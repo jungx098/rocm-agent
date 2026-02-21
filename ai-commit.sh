@@ -6,10 +6,11 @@ PS1_SCRIPT="$SCRIPT_DIR/ai-commit.ps1"
 
 usage() {
     cat >&2 <<EOF
-Usage: $0 [-a AGENT] [-m MAX_DIFF_LENGTH]
+Usage: $0 [--amend] [-a AGENT] [-m MAX_DIFF_LENGTH]
 
 Examples:
   $0
+  $0 --amend
   $0 -a cursor-agent
   $0 -m 8000
 EOF
@@ -20,11 +21,13 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
     exit 0
 fi
 
+AMEND=""
 AGENT=""
 MAX_DIFF=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        --amend) AMEND=1; shift ;;
         -a) AGENT="$2"; shift 2 ;;
         -m) MAX_DIFF="$2"; shift 2 ;;
         *)  echo "Unknown option: $1" >&2; usage; exit 1 ;;
@@ -59,6 +62,7 @@ if [ -z "$POWERSHELL" ]; then
 fi
 
 ARGS=(-ExecutionPolicy Bypass -File "$(to_win_path "$PS1_SCRIPT")")
+[ -n "$AMEND" ]    && ARGS+=(-Amend)
 [ -n "$AGENT" ]    && ARGS+=(-Agent "$AGENT")
 [ -n "$MAX_DIFF" ] && ARGS+=(-MaxDiffLength "$MAX_DIFF")
 

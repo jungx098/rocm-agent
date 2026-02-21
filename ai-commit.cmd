@@ -7,11 +7,17 @@ set "PS1_SCRIPT=%SCRIPT_DIR%ai-commit.ps1"
 if "%~1"=="-h" goto :usage
 if "%~1"=="--help" goto :usage
 
+set "AMEND="
 set "AGENT="
 set "MAX_DIFF="
 
 :parse_args
 if "%~1"=="" goto :done_args
+if "%~1"=="--amend" (
+    set "AMEND=1"
+    shift
+    goto :parse_args
+)
 if "%~1"=="-a" (
     set "AGENT=%~2"
     shift & shift
@@ -39,6 +45,7 @@ exit /b 1
 
 :found_ps
 set "ARGS=-ExecutionPolicy Bypass -File "%PS1_SCRIPT%""
+if defined AMEND set "ARGS=!ARGS! -Amend"
 if defined AGENT set "ARGS=!ARGS! -Agent "%AGENT%""
 if defined MAX_DIFF set "ARGS=!ARGS! -MaxDiffLength %MAX_DIFF%"
 
@@ -46,10 +53,11 @@ if defined MAX_DIFF set "ARGS=!ARGS! -MaxDiffLength %MAX_DIFF%"
 exit /b %errorlevel%
 
 :usage
-echo Usage: %~nx0 [-a AGENT] [-m MAX_DIFF_LENGTH] >&2
+echo Usage: %~nx0 [--amend] [-a AGENT] [-m MAX_DIFF_LENGTH] >&2
 echo. >&2
 echo Examples: >&2
 echo   %~nx0 >&2
+echo   %~nx0 --amend >&2
 echo   %~nx0 -a cursor-agent >&2
 echo   %~nx0 -m 8000 >&2
 exit /b 1

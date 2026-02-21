@@ -2,16 +2,20 @@
 .SYNOPSIS
     Generates a commit message via AI and opens the git editor to review before committing.
 .USAGE
-    .\ai-commit.ps1 [-Agent <command>] [-MaxDiffLength <int>]
+    .\ai-commit.ps1 [-Amend] [-Agent <command>] [-MaxDiffLength <int>]
 .EXAMPLE
     .\ai-commit.ps1
+    .\ai-commit.ps1 -Amend
     .\ai-commit.ps1 -Agent "cursor-agent"
 .NOTES
     Requires agent.cmd (or the command specified by -Agent) to be available in PATH.
-    Must be run from within a git repository with staged changes.
+    Must be run from within a git repository with staged changes (or -Amend to rewrite the last commit).
 #>
 
 param(
+    [Parameter(Mandatory=$false)]
+    [switch]$Amend,
+
     [Parameter(Mandatory=$false)]
     [string]$Agent = "agent.cmd",
 
@@ -32,15 +36,29 @@ if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
     exit 127
 }
 
-git diff --cached --quiet 2>$null
-if ($LASTEXITCODE -eq 0) {
-    Write-Error "No staged changes found. Stage files with 'git add' first."
-    exit 1
+$genArgs = @{
+    Agent         = $Agent
+    MaxDiffLength = $MaxDiffLength
+}
+
+if ($Amend) {
+    git rev-parse --verify HEAD 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "No commits to amend."
+        exit 1
+    }
+    $genArgs["Amend"] = $true
+} else {
+    git diff --cached --quiet 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Error "No staged changes found. Stage files with 'git add' first."
+        exit 1
+    }
 }
 
 $tmpFile = [System.IO.Path]::GetTempFileName()
 try {
-    & $GenScript -Agent $Agent -MaxDiffLength $MaxDiffLength -OutputFile $tmpFile
+    & $GenScript @genArgs -OutputFile $tmpFile
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Message generation failed."
         exit 1
@@ -48,7 +66,11 @@ try {
 
     Write-Host ""
     Write-Host "Opening editor for review ..." -ForegroundColor Cyan
-    git commit -e -F $tmpFile
+    if ($Amend) {
+        git commit --amend -e -F $tmpFile
+    } else {
+        git commit -e -F $tmpFile
+    }
 } finally {
     Remove-Item -Path $tmpFile -ErrorAction SilentlyContinue
 }
