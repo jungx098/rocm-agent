@@ -30,10 +30,28 @@ generate-pr-message.cmd <PR_URL> [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH
 
 ### Examples
 
+**PowerShell:**
+
+```powershell
+.\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/1801
+.\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/1801 -OutputFile pr-message.md
+.\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/1801 -Agent cursor-agent
 ```
-generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801
-generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -o pr-message.md
-generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -a cursor-agent
+
+**Bash / Cygwin:**
+
+```bash
+./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801
+./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -o pr-message.md
+./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -a cursor-agent
+```
+
+**CMD:**
+
+```cmd
+generate-pr-message.cmd https://github.com/ROCm/rocm-systems/pull/1801
+generate-pr-message.cmd https://github.com/ROCm/rocm-systems/pull/1801 -o pr-message.md
+generate-pr-message.cmd https://github.com/ROCm/rocm-systems/pull/1801 -a cursor-agent
 ```
 
 ## How It Works
