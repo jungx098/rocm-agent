@@ -181,7 +181,7 @@ Generate release notes from the following git repository changes.
 
 Format the output as markdown with the following structure:
 
-# Release Notes
+# Release Title (e.g., "v2.0.0 - Major Performance Update")
 
 ## Summary
 A brief overview paragraph of the key changes and improvements.
@@ -205,6 +205,7 @@ A brief overview paragraph of the key changes and improvements.
 Additional technical information if relevant.
 
 Rules:
+- Include a descriptive release title as H1 (suggest version number if tags are present, or a descriptive name)
 - Be concise and user-friendly
 - Group related changes together
 - Highlight breaking changes prominently
