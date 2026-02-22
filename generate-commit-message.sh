@@ -207,18 +207,10 @@ EOF
             BEGIN { in_message = 0; message = ""; }
             # Skip usage stats and tool execution lines
             /^Total usage est:|^API time spent:|^Total session time:|^Total code changes:|^Breakdown by AI model:|^ claude-|^ gpt-|^●|^  \$|^  └/ { next; }
-            # Skip the "--- Commit Message ---" header
-            /^--- Commit Message ---$/ { next; }
             # Skip empty lines before the message starts
             /^[[:space:]]*$/ && in_message == 0 { next; }
-            # Once we hit content, start collecting
-            /^[a-z]+:/ || in_message == 1 { 
-                in_message = 1;
-                if (message != "") message = message "\n";
-                message = message $0;
-                next;
-            }
-            # If we are in message mode, collect everything
+            # Once we hit content (commit type or already in message), start collecting
+            /^(feat|fix|refactor|docs|test|chore|style|perf|ci|build):/ { in_message = 1; }
             in_message == 1 {
                 if (message != "") message = message "\n";
                 message = message $0;
@@ -255,8 +247,6 @@ EOF
         fi
     fi
 
-    # Also output to stdout for potential piping
-    echo "$MESSAGE"
     exit 0
 fi
 
