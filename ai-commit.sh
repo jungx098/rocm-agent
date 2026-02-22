@@ -34,13 +34,13 @@ case "$(uname -s)" in
 esac
 
 AMEND=""
-AGENT=""
+AGENT_CMD="${AGENT:-agent}"
 MAX_DIFF=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --amend) AMEND="--amend"; shift ;;
-        -a) AGENT="$2"; shift 2 ;;
+        -a) AGENT_CMD="$2"; shift 2 ;;
         -m) MAX_DIFF="$2"; shift 2 ;;
         *)  echo "Unknown option: $1" >&2; usage; exit 1 ;;
     esac
@@ -80,7 +80,7 @@ if [ $USE_NATIVE -eq 1 ]; then
 
     GEN_ARGS=(-o "$TMP_FILE")
     [ -n "$AMEND" ] && GEN_ARGS+=("$AMEND")
-    [ -n "$AGENT" ] && GEN_ARGS+=(-a "$AGENT")
+    [ -n "$AGENT_CMD" ] && [ "$AGENT_CMD" != "agent" ] && GEN_ARGS+=(-a "$AGENT_CMD")
     [ -n "$MAX_DIFF" ] && GEN_ARGS+=(-m "$MAX_DIFF")
 
     if ! "$GEN_SCRIPT" "${GEN_ARGS[@]}" >/dev/null; then
@@ -132,7 +132,7 @@ fi
 
 ARGS=(-ExecutionPolicy Bypass -File "$(to_win_path "$PS1_SCRIPT")")
 [ -n "$AMEND" ]    && ARGS+=(-Amend)
-[ -n "$AGENT" ]    && ARGS+=(-Agent "$AGENT")
+[ -n "$AGENT_CMD" ] && [ "$AGENT_CMD" != "agent" ] && ARGS+=(-Agent "$AGENT_CMD")
 [ -n "$MAX_DIFF" ] && ARGS+=(-MaxDiffLength "$MAX_DIFF")
 
 "$POWERSHELL" "${ARGS[@]}"

@@ -43,6 +43,7 @@ ai-commit.cmd [--amend] [-a AGENT] [-m MAX_DIFF_LENGTH]
 ./ai-commit.sh
 ./ai-commit.sh --amend
 ./ai-commit.sh -a copilot
+AGENT=copilot ./ai-commit.sh
 ```
 
 ### generate-commit-message
@@ -77,6 +78,7 @@ generate-commit-message.cmd [COMMIT_HASH] [--amend] [-o OUTPUT_FILE] [-a AGENT] 
 ./generate-commit-message.sh abc1234 -o commit-msg.txt
 ./generate-commit-message.sh --amend
 ./generate-commit-message.sh -a copilot
+AGENT=copilot ./generate-commit-message.sh
 ```
 
 ### generate-pr-message
@@ -109,6 +111,7 @@ generate-pr-message.cmd <PR_URL> [-t MODE] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_D
 ./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -t squash
 ./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -o pr-message.md
 ./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -a copilot
+AGENT=copilot ./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801
 ```
 
 ## How It Works
@@ -168,7 +171,24 @@ The scripts work with multiple AI agent formats:
 
 - **copilot** — GitHub Copilot CLI (uses `-p` flag for prompts, auto-cleans output)
 - **agent** or **agent.cmd** — Generic agent format (uses `chat` command)
-- Custom agents — specify with `-a` / `-Agent` flag
+- Custom agents — specify with `-a` / `-Agent` flag or `AGENT` environment variable
+
+### Setting the Agent
+
+You can specify the agent in three ways (in order of precedence):
+
+1. **Command-line flag** (highest priority):
+   ```bash
+   ./generate-commit-message.sh -a copilot
+   ```
+
+2. **Environment variable**:
+   ```bash
+   AGENT=copilot ./generate-commit-message.sh
+   export AGENT=copilot  # Set for all subsequent commands
+   ```
+
+3. **Default** (lowest priority): Uses `agent` if nothing is specified
 
 ## Files
 

@@ -36,7 +36,7 @@ esac
 
 COMMIT_HASH=""
 OUTPUT_FILE=""
-AGENT="${AGENT:-agent}"
+AGENT_CMD="${AGENT:-agent}"
 MAX_DIFF_LENGTH=12000
 AMEND=0
 
@@ -50,7 +50,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --amend) AMEND=1; shift ;;
         -o) OUTPUT_FILE="$2"; shift 2 ;;
-        -a) AGENT="$2"; shift 2 ;;
+        -a) AGENT_CMD="$2"; shift 2 ;;
         -m) MAX_DIFF_LENGTH="$2"; shift 2 ;;
         *)  echo "Unknown option: $1" >&2; usage; exit 1 ;;
     esac
@@ -66,8 +66,8 @@ if [ $USE_NATIVE -eq 1 ]; then
         exit 127
     fi
 
-    if ! command -v "$AGENT" >/dev/null 2>&1; then
-        echo "Error: '$AGENT' command not found in PATH." >&2
+    if ! command -v "$AGENT_CMD" >/dev/null 2>&1; then
+        echo "Error: '$AGENT_CMD' command not found in PATH." >&2
         exit 127
     fi
 
@@ -192,12 +192,12 @@ EOF
 )
 
     # --- Call agent ---
-    echo "Generating commit message via $AGENT ..." >&2
+    echo "Generating commit message via $AGENT_CMD ..." >&2
     echo "" >&2
 
     # Handle different agent command formats
-    if [[ "$AGENT" == *"copilot"* ]]; then
-        if ! RAW_OUTPUT=$("$AGENT" -p "$PROMPT" 2>&1); then
+    if [[ "$AGENT_CMD" == *"copilot"* ]]; then
+        if ! RAW_OUTPUT=$("$AGENT_CMD" -p "$PROMPT" 2>&1); then
             echo "Error: Agent call failed." >&2
             exit 1
         fi
@@ -219,7 +219,7 @@ EOF
         ')
     else
         # Default format for agent.cmd and similar
-        if ! MESSAGE=$(echo "$PROMPT" | "$AGENT" chat); then
+        if ! MESSAGE=$(echo "$PROMPT" | "$AGENT_CMD" chat); then
             echo "Error: Agent call failed." >&2
             exit 1
         fi
@@ -284,7 +284,7 @@ ARGS=(-ExecutionPolicy Bypass -File "$(to_win_path "$PS1_SCRIPT")")
 [ -n "$COMMIT_HASH" ] && ARGS+=("$COMMIT_HASH")
 [ $AMEND -eq 1 ]      && ARGS+=(-Amend)
 [ -n "$OUTPUT_FILE" ] && ARGS+=(-OutputFile "$(to_win_path "$OUTPUT_FILE")")
-[ -n "$AGENT" ]       && ARGS+=(-Agent "$AGENT")
+[ -n "$AGENT_CMD" ] && [ "$AGENT_CMD" != "agent" ] && ARGS+=(-Agent "$AGENT_CMD")
 [ -n "$MAX_DIFF_LENGTH" ] && ARGS+=(-MaxDiffLength "$MAX_DIFF_LENGTH")
 
 "$POWERSHELL" "${ARGS[@]}"
