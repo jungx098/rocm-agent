@@ -6,10 +6,15 @@ PS1_SCRIPT="$SCRIPT_DIR/generate-pr-message.ps1"
 
 usage() {
     cat >&2 <<EOF
-Usage: $0 <PR_URL> [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH]
+Usage: $0 <PR_URL> [-t MODE] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH]
+
+Mode: all (default), title, message, or squash
 
 Examples:
   $0 https://github.com/ROCm/rocm-systems/pull/1801
+  $0 https://github.com/ROCm/rocm-systems/pull/1801 -t title
+  $0 https://github.com/ROCm/rocm-systems/pull/1801 -t message
+  $0 https://github.com/ROCm/rocm-systems/pull/1801 -t squash
   $0 https://github.com/ROCm/rocm-systems/pull/1801 -o pr-message.md
   $0 https://github.com/ROCm/rocm-systems/pull/1801 -a cursor-agent
 EOF
@@ -31,12 +36,14 @@ shift
 OUTPUT_FILE=""
 AGENT=""
 MAX_DIFF=""
+MODE=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
         -o) OUTPUT_FILE="$2"; shift 2 ;;
         -a) AGENT="$2"; shift 2 ;;
         -m) MAX_DIFF="$2"; shift 2 ;;
+        -t) MODE="$2"; shift 2 ;;
         *)  echo "Unknown option: $1" >&2; usage; exit 1 ;;
     esac
 done
@@ -69,6 +76,7 @@ if [ -z "$POWERSHELL" ]; then
 fi
 
 ARGS=(-ExecutionPolicy Bypass -File "$(to_win_path "$PS1_SCRIPT")" "$PR_URL")
+[ -n "$MODE" ]        && ARGS+=(-Mode "$MODE")
 [ -n "$OUTPUT_FILE" ] && ARGS+=(-OutputFile "$(to_win_path "$OUTPUT_FILE")")
 [ -n "$AGENT" ]       && ARGS+=(-Agent "$AGENT")
 [ -n "$MAX_DIFF" ]    && ARGS+=(-MaxDiffLength "$MAX_DIFF")

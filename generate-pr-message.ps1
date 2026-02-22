@@ -1,12 +1,14 @@
 <#
 .SYNOPSIS
-    Fetches a GitHub PR and uses agent.cmd to generate a structured PR message.
+    Fetches a GitHub PR and uses an AI agent to generate a PR title, PR message body, and/or squash-merge commit message.
 .USAGE
-    .\generate-pr-message.ps1 <PR_URL> [-OutputFile <path>] [-Agent <command>] [-MaxDiffLength <int>]
+    .\generate-pr-message.ps1 <PR_URL> [-Mode <all|title|message|squash>] [-OutputFile <path>] [-Agent <command>] [-MaxDiffLength <int>]
 .EXAMPLE
     .\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/3423
+    .\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/3423 -Mode title
+    .\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/3423 -Mode message
+    .\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/3423 -Mode squash
     .\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/3423 -OutputFile pr-message.md
-    .\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/3423 -Agent "cursor-agent"
 .NOTES
     Requires agent.cmd (or the command specified by -Agent) to be available in PATH.
 #>
@@ -14,6 +16,10 @@
 param(
     [Parameter(Mandatory=$true, Position=0)]
     [string]$PrUrl,
+
+    [Parameter(Mandatory=$false)]
+    [ValidateSet("all", "title", "message", "squash")]
+    [string]$Mode = "all",
 
     [Parameter(Mandatory=$false)]
     [string]$OutputFile,
@@ -85,6 +91,21 @@ try {
     $diff = "(could not fetch diff)"
 }
 
+# --- Fetch first comment ---
+Write-Host "Fetching comments ..." -ForegroundColor Cyan
+$issueCommentsUrl = "https://api.github.com/repos/$owner/$repo/issues/$prNum/comments?per_page=1"
+try {
+    $comments = Invoke-RestMethod -Uri $issueCommentsUrl -Headers $ghHeaders -Method Get
+    if ($comments -and $comments.Count -gt 0) {
+        $firstComment = $comments[0].body
+        $firstCommentAuthor = $comments[0].user.login
+    } else {
+        $firstComment = $null
+    }
+} catch {
+    $firstComment = $null
+}
+
 # --- PR metadata ---
 $title        = $pr.title
 $author       = $pr.user.login
@@ -95,14 +116,16 @@ $deletions    = $pr.deletions
 $changedFiles = $pr.changed_files
 $body         = if ($pr.body) { $pr.body } else { "(no description provided)" }
 
-# --- Fetch PR template from the repo ---
-$templateUrl = "https://raw.githubusercontent.com/$owner/$repo/$baseBranch/.github/pull_request_template.md"
-Write-Host "Fetching PR template from $owner/$repo ($baseBranch) ..." -ForegroundColor Cyan
-try {
-    $template = Invoke-RestMethod -Uri $templateUrl -Headers @{ "User-Agent" = "PR-Message-Generator" } -Method Get
-} catch {
-    Write-Warning "Could not fetch PR template from repo, using built-in fallback."
-    $template = @"
+# --- Fetch PR template (needed for "message" and "all" modes) ---
+$template = $null
+if ($Mode -eq "all" -or $Mode -eq "message") {
+    $templateUrl = "https://raw.githubusercontent.com/$owner/$repo/$baseBranch/.github/pull_request_template.md"
+    Write-Host "Fetching PR template from $owner/$repo ($baseBranch) ..." -ForegroundColor Cyan
+    try {
+        $template = Invoke-RestMethod -Uri $templateUrl -Headers @{ "User-Agent" = "PR-Message-Generator" } -Method Get
+    } catch {
+        Write-Warning "Could not fetch PR template from repo, using built-in fallback."
+        $template = @"
 ## Motivation
 ## Technical Details
 ## JIRA ID
@@ -111,21 +134,15 @@ try {
 ## Submission Checklist
 - [ ] Look over the contributing guidelines at https://github.com/ROCm/ROCm/blob/develop/CONTRIBUTING.md#pull-requests.
 "@
+    }
 }
 
 # --- Build prompt ---
-$prompt = @"
-Generate a PR title and fill the template below.
+$firstCommentSection = if ($firstComment) {
+    "`n## First Comment (by @$firstCommentAuthor)`n`n$firstComment"
+} else { "" }
 
-For the title:
-- Start with a type prefix: feat, fix, refactor, docs, test, chore, style, perf, ci, build
-- Format: <type>: <short description>
-- Capitalize first letter of description, imperative mood, no period, max 72 characters
-- Output the title on the first line, then a blank line, then the filled template
-
-For the body:
-- Be brief and concise — use short sentences, no filler, no repetition
-- Each section should be 1-3 sentences or a short bullet list at most
+$prContext = @"
 
 # PR Information
 
@@ -138,6 +155,7 @@ For the body:
 ## Original PR Description
 
 $body
+$firstCommentSection
 
 ## Changed Files
 
@@ -146,14 +164,101 @@ $fileList
 ## Diff
 
 $diff
+"@
+
+$titleRules = @"
+- Start with a type prefix: feat, fix, refactor, docs, test, chore, style, perf, ci, build
+- Format: <type>: <short description>
+- Capitalize first letter of description, imperative mood, no period, max 72 characters
+"@
+
+$messageRules = @"
+- Be brief and concise — use short sentences, no filler, no repetition
+- Each section should be 1-3 sentences or a short bullet list at most
+"@
+
+$squashRules = @"
+- type is one of: feat, fix, refactor, docs, test, chore, style, perf, ci, build
+- Subject line: capitalize first letter, imperative mood, no period, max 72 characters
+- Include the PR number (#$prNum) at the end of the subject line
+- Body: 1-3 short bullet points summarizing the key changes, separated from subject by a blank line
+- Wrap body lines at 72 characters; break mid-sentence if needed to stay within the limit
+"@
+
+switch ($Mode) {
+    "title" {
+        $prompt = @"
+Generate a PR title for the following pull request.
+
+Rules:
+$titleRules
+- Output ONLY the title line, nothing else — no explanation, no quotes, no markdown fences
+$prContext
+"@
+    }
+    "message" {
+        $prompt = @"
+Fill in the PR template below for the following pull request.
+
+Rules:
+$messageRules
+- Output ONLY the filled template, nothing else — no title, no explanation, no quotes, no markdown fences
+$prContext
 
 ## Template to Fill
 
 $template
 "@
+    }
+    "squash" {
+        $prompt = @"
+Generate a squash-merge commit message for this GitHub PR.
+
+Format:
+
+<type>: <short description> (#$prNum)
+
+- bullet 1
+- bullet 2
+
+Rules:
+$squashRules
+- Output ONLY the commit message, nothing else — no explanation, no quotes, no markdown fences
+$prContext
+"@
+    }
+    "all" {
+        $prompt = @"
+Generate three outputs for this GitHub PR, separated by the exact delimiters shown below.
+
+===TITLE===
+A single PR title line.
+===MESSAGE===
+A filled-in PR template body.
+===SQUASH===
+A squash-merge commit message.
+
+Rules for TITLE:
+$titleRules
+
+Rules for MESSAGE:
+$messageRules
+
+Rules for SQUASH (format: <type>: <short description> (#$prNum)\n\n- bullet 1\n- bullet 2):
+$squashRules
+
+Output ONLY the three sections with delimiters. No explanation, no quotes, no markdown fences.
+$prContext
+
+## Template to Fill (for MESSAGE section)
+
+$template
+"@
+    }
+}
 
 # --- Call agent ---
-Write-Host "Generating PR message via $Agent ..." -ForegroundColor Cyan
+Write-Host "Generating via $Agent (mode: $Mode) ..." -ForegroundColor Cyan
 
 try {
     $raw = $prompt | & $Agent chat
@@ -163,21 +268,46 @@ try {
     exit 1
 }
 
-# --- Split title and body ---
-$lines = $message -split "`n"
-$prTitle = $lines[0].Trim()
-$prBody = ($lines | Select-Object -Skip 1) -join "`n"
-$prBody = $prBody.TrimStart("`n")
+# --- Parse and display ---
+function Show-Section($header, $color, $content) {
+    Write-Host ""
+    Write-Host "--- $header ---" -ForegroundColor $color
+    Write-Host ""
+    $content -split "`n" | ForEach-Object { Write-Host $_ }
+}
 
-# --- Output ---
-Write-Host ""
-Write-Host "--- PR Title ---" -ForegroundColor Green
-Write-Host $prTitle
-Write-Host ""
-Write-Host "--- PR Body ---" -ForegroundColor Green
-Write-Host ""
-$prBody -split "`n" | ForEach-Object { Write-Host $_ }
+if ($Mode -eq "all") {
+    $titleContent  = ""
+    $msgContent    = ""
+    $squashContent = ""
 
+    if ($message -match '(?s)===TITLE===\s*(.+?)===MESSAGE===\s*(.+?)===SQUASH===\s*(.+)$') {
+        $titleContent  = $Matches[1].Trim()
+        $msgContent    = $Matches[2].Trim()
+        $squashContent = $Matches[3].Trim()
+    } else {
+        Write-Warning "Could not parse delimited output; showing raw response."
+        $titleContent = $message
+    }
+
+    if ($titleContent)  { Show-Section "PR Title"              Green  $titleContent  }
+    if ($msgContent)    { Show-Section "PR Message"            Green  $msgContent    }
+    if ($squashContent) { Show-Section "Squash Merge Message"  Green  $squashContent }
+
+    $output = @()
+    if ($titleContent)  { $output += "===TITLE===";   $output += $titleContent;  $output += "" }
+    if ($msgContent)    { $output += "===MESSAGE==="; $output += $msgContent;    $output += "" }
+    if ($squashContent) { $output += "===SQUASH===";  $output += $squashContent }
+    $message = $output -join "`n"
+} elseif ($Mode -eq "title") {
+    Show-Section "PR Title" Green $message
+} elseif ($Mode -eq "message") {
+    Show-Section "PR Message" Green $message
+} elseif ($Mode -eq "squash") {
+    Show-Section "Squash Merge Message" Green $message
+}
+
+# --- Output to file or clipboard ---
 if ($OutputFile) {
     $message | Out-File -FilePath $OutputFile -Encoding utf8
     Write-Host ""

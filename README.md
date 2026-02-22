@@ -69,26 +69,33 @@ generate-commit-message.cmd [COMMIT_HASH] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DI
 
 ### generate-pr-message
 
-Fetches a GitHub pull request (metadata, file list, diff), retrieves the repo's PR template, and passes everything to the AI agent to produce a PR title and filled-in PR body.
+Fetches a GitHub pull request (metadata, file list, diff) and passes everything to the AI agent. By default generates all three outputs together: a PR **title**, a filled PR **message** body, and a **squash**-merge commit message. Use `-Mode` / `-t` to generate just one.
 
 ```powershell
-.\generate-pr-message.ps1 <PR_URL> [-OutputFile <path>] [-Agent <command>] [-MaxDiffLength <int>]
-./generate-pr-message.sh <PR_URL> [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH]
-generate-pr-message.cmd <PR_URL> [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH]
+.\generate-pr-message.ps1 <PR_URL> [-Mode <all|title|message|squash>] [-OutputFile <path>] [-Agent <command>] [-MaxDiffLength <int>]
+./generate-pr-message.sh <PR_URL> [-t MODE] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH]
+generate-pr-message.cmd <PR_URL> [-t MODE] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH]
 ```
 
 **Examples:**
 
 ```powershell
+# Generate all three (title + message + squash) — default
 .\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/1801
+
+# Generate only one
+.\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/1801 -Mode title
+.\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/1801 -Mode message
+.\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/1801 -Mode squash
+
 .\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/1801 -OutputFile pr-message.md
-.\generate-pr-message.ps1 https://github.com/ROCm/rocm-systems/pull/1801 -Agent cursor-agent
 ```
 
 ```bash
 ./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801
+./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -t title
+./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -t squash
 ./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -o pr-message.md
-./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -a cursor-agent
 ```
 
 ## How It Works
@@ -114,9 +121,12 @@ generate-pr-message.cmd <PR_URL> [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH
 
 1. Parses the GitHub PR URL to extract owner, repo, and PR number.
 2. Fetches PR metadata, changed file list, and diff via the GitHub API.
-3. Fetches the repo's `.github/pull_request_template.md` from the PR's base branch.
-4. Builds a prompt with all the context and pipes it to the AI agent.
-5. Outputs a PR title (first line) and body (filled template) to the console and copies to the clipboard (or saves to a file with `-o`).
+3. Depending on mode:
+   - **all** (default) — generates all three outputs (title, message, squash) in a single agent call.
+   - **title** — generates only a conventional-commit-style PR title.
+   - **message** — fetches the repo's `.github/pull_request_template.md` and fills it in.
+   - **squash** — generates a squash-merge commit message with the PR number (e.g., `feat: Add feature (#123)`).
+4. Copies the result to the clipboard (or saves to a file with `-o`).
 
 ## Options
 
@@ -124,6 +134,7 @@ generate-pr-message.cmd <PR_URL> [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH
 |--------|-----------|----------|---------|-------------|
 | Amend | `-Amend` | `--amend` | _(off)_ | Rewrite last commit; diff covers HEAD + staged changes |
 | Commit hash | `<CommitHash>` (positional) | positional arg | _(staged changes)_ | Target a specific commit instead of staged changes |
+| Mode | `-Mode` | `-t` | `all` | Output type: `all`, `title`, `message`, or `squash` |
 | Output file | `-OutputFile` | `-o` | _(clipboard)_ | Save output to a file instead of clipboard |
 | Agent command | `-Agent` | `-a` | `agent.cmd` | AI agent CLI to use |
 | Max diff length | `-MaxDiffLength` | `-m` | `12000` | Truncate diff beyond this character count |
