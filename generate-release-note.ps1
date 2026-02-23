@@ -6,8 +6,10 @@ param(
     [string]$Hash2 = "",
     
     [string]$OutputFile = "",
-    [string]$Agent = $env:AGENT ?? "agent",
-    [int]$MaxDiffLength = 20000
+    [string]$Agent = $(if ($env:AGENT) { $env:AGENT } else { "agent" }),
+    [int]$MaxDiffLength = 20000,
+    [Alias("h")]
+    [switch]$Help
 )
 
 function Show-Usage {
@@ -28,7 +30,7 @@ Examples:
 "@ | Write-Host
 }
 
-if ($Hash1 -eq "-h" -or $Hash1 -eq "--help") {
+if ($Help -or $Hash1 -eq "--help") {
     Show-Usage
     exit 0
 }
@@ -98,16 +100,16 @@ if ($Hash1 -and $Hash2) {
 Write-Host "Collecting $SourceLabel ..." -ForegroundColor Cyan
 
 if ($Range) {
-    $CommitLog = git log --oneline $Range 2>&1
+    $CommitLog = (git log --oneline $Range 2>&1) -join "`n"
     if ($LASTEXITCODE -ne 0) { $CommitLog = "(no commits in range)" }
     
-    $Stat = git diff $Range --stat 2>&1
+    $Stat = (git diff $Range --stat 2>&1) -join "`n"
     if ($LASTEXITCODE -ne 0) { $Stat = "(no changes)" }
     
-    $Diff = git diff $Range 2>&1
+    $Diff = (git diff $Range 2>&1) -join "`n"
     if ($LASTEXITCODE -ne 0) { $Diff = "(no diff available)" }
     
-    $FileListRaw = git diff $Range --name-status 2>&1
+    $FileListRaw = (git diff $Range --name-status 2>&1) -join "`n"
     if ($LASTEXITCODE -eq 0) {
         $FileList = ($FileListRaw -split "`n" | ForEach-Object {
             if ($_ -match '^([AMDRC])\s+(.+)$') {
@@ -119,7 +121,7 @@ if ($Range) {
                     'D' { "deleted: $file" }
                     'R' { "renamed: $file" }
                     'C' { "copied: $file" }
-                    default { "$status: $file" }
+                    default { "${status}: $file" }
                 }
             }
         }) -join "`n"
@@ -127,18 +129,18 @@ if ($Range) {
         $FileList = ""
     }
 } else {
-    $CommitLog = git log --oneline 2>&1
+    $CommitLog = (git log --oneline 2>&1) -join "`n"
     if ($LASTEXITCODE -ne 0) { $CommitLog = "(no commits yet)" }
     
     $FirstCommit = git rev-list --max-parents=0 HEAD 2>&1 | Select-Object -First 1
     if ($FirstCommit -and $LASTEXITCODE -eq 0) {
-        $Stat = git diff --stat $FirstCommit HEAD 2>&1
+        $Stat = (git diff --stat $FirstCommit HEAD 2>&1) -join "`n"
         if ($LASTEXITCODE -ne 0) { $Stat = "(no changes)" }
         
-        $Diff = git diff $FirstCommit HEAD 2>&1
+        $Diff = (git diff $FirstCommit HEAD 2>&1) -join "`n"
         if ($LASTEXITCODE -ne 0) { $Diff = "(no diff available)" }
         
-        $FileListRaw = git diff $FirstCommit HEAD --name-status 2>&1
+        $FileListRaw = (git diff $FirstCommit HEAD --name-status 2>&1) -join "`n"
         if ($LASTEXITCODE -eq 0) {
             $FileList = ($FileListRaw -split "`n" | ForEach-Object {
                 if ($_ -match '^([AMDRC])\s+(.+)$') {
@@ -150,7 +152,7 @@ if ($Range) {
                         'D' { "deleted: $file" }
                         'R' { "renamed: $file" }
                         'C' { "copied: $file" }
-                        default { "$status: $file" }
+                        default { "${status}: $file" }
                     }
                 }
             }) -join "`n"
@@ -255,7 +257,7 @@ try {
                 continue
             }
             # Skip empty lines before message starts
-            if (-not $InMessage -and $line -match '^[[:space:]]*$') {
+            if (-not $InMessage -and $line -match '^\s*$') {
                 continue
             }
             # Once we hit content (markdown heading), start collecting
@@ -268,7 +270,7 @@ try {
             }
         }
     } else {
-        $Message = $Prompt | & $Agent chat
+        $Message = (& $Agent -p $Prompt 2>&1) -join "`n"
         if ($LASTEXITCODE -ne 0) { throw "Agent call failed." }
     }
 } catch {
