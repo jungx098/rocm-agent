@@ -1,6 +1,6 @@
 # rocm-agent
 
-AI-powered git workflow tools. Generate PR messages from GitHub pull requests or commit messages from staged changes / existing commits, all driven by an AI agent.
+AI-powered git workflow tools. Generate PR messages, commit messages, or release notes from git changes, all driven by an AI agent.
 
 ## Prerequisites
 
@@ -114,6 +114,44 @@ generate-pr-message.cmd <PR_URL> [-t MODE] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_D
 AGENT=copilot ./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801
 ```
 
+### generate-release-note
+
+Generates markdown release notes from git changes between two commits, tags, or across the entire repository. Collects commit log, file list, diff stats, and full diff, then sends everything to an AI agent.
+
+```powershell
+.\generate-release-note.ps1 [HASH1] [HASH2] [-OutputFile <path>] [-Agent <command>] [-MaxDiffLength <int>]
+./generate-release-note.sh [HASH1] [HASH2] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH]
+generate-release-note.cmd [HASH1] [HASH2] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH]
+```
+
+**Examples:**
+
+```powershell
+# All commits in the repository
+.\generate-release-note.ps1
+
+# From beginning to a specific commit
+.\generate-release-note.ps1 abc1234
+
+# Between two commits or tags
+.\generate-release-note.ps1 v1.0.0 v2.0.0
+
+# Save to file
+.\generate-release-note.ps1 v1.0.0 v2.0.0 -OutputFile release.md
+
+# Use a specific agent
+.\generate-release-note.ps1 v1.0.0 v2.0.0 -Agent copilot
+```
+
+```bash
+./generate-release-note.sh
+./generate-release-note.sh abc1234
+./generate-release-note.sh v1.0.0 v2.0.0
+./generate-release-note.sh v1.0.0 v2.0.0 -o release.md
+./generate-release-note.sh v1.0.0 v2.0.0 -a copilot
+AGENT=copilot ./generate-release-note.sh v1.0.0 v2.0.0
+```
+
 ## How It Works
 
 ### ai-commit
@@ -154,23 +192,39 @@ AGENT=copilot ./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull
 
 **On Windows:** Falls back to PowerShell implementation.
 
+### generate-release-note
+
+**On macOS/Linux (native bash implementation):**
+1. Resolves the commit range based on arguments:
+   - **Two hashes/tags** — uses the range `HASH1..HASH2`
+   - **One hash/tag** — uses the range from the first commit in the repo to `HASH1`
+   - **No arguments** — covers all commits in the repository
+2. Gathers commit log, changed file list (with add/modify/delete annotations), diff stats, and full diff.
+3. Truncates the diff if it exceeds the max length (default 20000 chars).
+4. Builds a prompt requesting structured markdown release notes (Summary, New Features, Bug Fixes, Improvements, Breaking Changes).
+5. Sends the prompt to the AI agent and outputs the result.
+6. Copies to clipboard via `pbcopy` (macOS) or `xclip` (Linux), or saves to a file with `-o`.
+
+**On Windows:** Falls back to PowerShell implementation.
+
 ## Options
 
 | Option | PowerShell | sh / cmd | Default | Description |
 |--------|-----------|----------|---------|-------------|
 | Amend | `-Amend` | `--amend` | _(off)_ | Rewrite last commit; diff covers HEAD + staged changes |
 | Commit hash | `<CommitHash>` (positional) | positional arg | _(staged changes)_ | Target a specific commit instead of staged changes |
+| Hash range | `<HASH1> <HASH2>` (positional) | positional args | _(all commits)_ | Commit range for release notes (generate-release-note only) |
 | Mode | `-Mode` | `-t` | `all` | Output type: `all`, `title`, `message`, or `squash` |
 | Output file | `-OutputFile` | `-o` | _(clipboard)_ | Save output to a file instead of clipboard |
-| Agent command | `-Agent` | `-a` | `agent.cmd` / `agent` / `copilot` | AI agent CLI to use |
-| Max diff length | `-MaxDiffLength` | `-m` | `12000` | Truncate diff beyond this character count |
+| Agent command | `-Agent` | `-a` | `agent` | AI agent CLI to use |
+| Max diff length | `-MaxDiffLength` | `-m` | `12000` / `20000` | Truncate diff beyond this character count (20000 for release notes) |
 
 ## Supported AI Agents
 
 The scripts work with multiple AI agent formats:
 
 - **copilot** — GitHub Copilot CLI (uses `-p` flag for prompts, auto-cleans output)
-- **agent** or **agent.cmd** — Generic agent format (uses `chat` command)
+- **agent** — Cursor Agent CLI (uses `-p` flag for headless/print mode)
 - Custom agents — specify with `-a` / `-Agent` flag or `AGENT` environment variable
 
 ### Setting the Agent
@@ -203,6 +257,9 @@ You can specify the agent in three ways (in order of precedence):
 | `generate-pr-message.ps1` | PR message generator — PowerShell implementation |
 | `generate-pr-message.sh` | PR message generator — Cross-platform (native bash on macOS/Linux, PowerShell on Windows) |
 | `generate-pr-message.cmd` | PR message generator — Windows CMD wrapper |
+| `generate-release-note.ps1` | Release note generator — PowerShell implementation |
+| `generate-release-note.sh` | Release note generator — Cross-platform (native bash on macOS/Linux, PowerShell on Windows) |
+| `generate-release-note.cmd` | Release note generator — Windows CMD wrapper |
 
 ## Platform-Specific Notes
 
