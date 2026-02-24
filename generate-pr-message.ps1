@@ -166,24 +166,58 @@ $fileList
 $diff
 "@
 
-$titleRules = @"
+# --- Extract JIRA ID from title or body ---
+$jiraId = $null
+if ($title -match '([A-Z][A-Z0-9]+-\d+)') {
+    $jiraId = $Matches[1]
+} elseif ($body -match '([A-Z][A-Z0-9]+-\d+)') {
+    $jiraId = $Matches[1]
+}
+
+if ($jiraId) {
+    Write-Host "Detected JIRA ID: $jiraId" -ForegroundColor Cyan
+
+    $titleRules = @"
+- Use the JIRA ID as the title prefix instead of a type prefix
+- Format: ${jiraId}: <short description>
+- Capitalize first letter of description, imperative mood, no period, max 72 characters
+"@
+
+    $messageRules = @"
+- Be brief and concise — use short sentences, no filler, no repetition
+- Each section should be 1-3 sentences or a short bullet list at most
+- For the JIRA ID section, output exactly: $jiraId
+"@
+
+    $squashRules = @"
+- Use the JIRA ID as the subject line prefix instead of a type prefix
+- Subject line format: ${jiraId}: <short description> (#$prNum)
+- Capitalize first letter of description, imperative mood, no period, max 72 characters
+- Include the PR number (#$prNum) at the end of the subject line
+- Body: 1-3 short bullet points summarizing the key changes, separated from subject by a blank line
+- Wrap body lines at 72 characters; break mid-sentence if needed to stay within the limit
+"@
+} else {
+    $titleRules = @"
 - Start with a type prefix: feat, fix, refactor, docs, test, chore, style, perf, ci, build
 - Format: <type>: <short description>
 - Capitalize first letter of description, imperative mood, no period, max 72 characters
 "@
 
-$messageRules = @"
+    $messageRules = @"
 - Be brief and concise — use short sentences, no filler, no repetition
 - Each section should be 1-3 sentences or a short bullet list at most
+- For the JIRA ID section, output ONLY the JIRA ticket ID (e.g., SWDEV-12345) — no prefix like Resolves, Fixes, Closes, etc.
 "@
 
-$squashRules = @"
+    $squashRules = @"
 - type is one of: feat, fix, refactor, docs, test, chore, style, perf, ci, build
 - Subject line: capitalize first letter, imperative mood, no period, max 72 characters
 - Include the PR number (#$prNum) at the end of the subject line
 - Body: 1-3 short bullet points summarizing the key changes, separated from subject by a blank line
 - Wrap body lines at 72 characters; break mid-sentence if needed to stay within the limit
 "@
+}
 
 switch ($Mode) {
     "title" {

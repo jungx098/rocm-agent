@@ -214,18 +214,46 @@ $FILE_LIST
 
 $DIFF"
 
-    TITLE_RULES="- Start with a type prefix: feat, fix, refactor, docs, test, chore, style, perf, ci, build
+    # --- Extract JIRA ID from title or body ---
+    JIRA_ID=""
+    if [[ "$TITLE" =~ ([A-Z][A-Z0-9]+-[0-9]+) ]]; then
+        JIRA_ID="${BASH_REMATCH[1]}"
+    elif [[ "$BODY" =~ ([A-Z][A-Z0-9]+-[0-9]+) ]]; then
+        JIRA_ID="${BASH_REMATCH[1]}"
+    fi
+
+    if [ -n "$JIRA_ID" ]; then
+        echo "Detected JIRA ID: $JIRA_ID" >&2
+
+        TITLE_RULES="- Use the JIRA ID as the title prefix instead of a type prefix
+- Format: $JIRA_ID: <short description>
+- Capitalize first letter of description, imperative mood, no period, max 72 characters"
+
+        MESSAGE_RULES="- Be brief and concise — use short sentences, no filler, no repetition
+- Each section should be 1-3 sentences or a short bullet list at most
+- For the JIRA ID section, output exactly: $JIRA_ID"
+
+        SQUASH_RULES="- Use the JIRA ID as the subject line prefix instead of a type prefix
+- Subject line format: $JIRA_ID: <short description> (#$PR_NUM)
+- Capitalize first letter of description, imperative mood, no period, max 72 characters
+- Include the PR number (#$PR_NUM) at the end of the subject line
+- Body: 1-3 short bullet points summarizing the key changes, separated from subject by a blank line
+- Wrap body lines at 72 characters; break mid-sentence if needed to stay within the limit"
+    else
+        TITLE_RULES="- Start with a type prefix: feat, fix, refactor, docs, test, chore, style, perf, ci, build
 - Format: <type>: <short description>
 - Capitalize first letter of description, imperative mood, no period, max 72 characters"
 
-    MESSAGE_RULES="- Be brief and concise — use short sentences, no filler, no repetition
-- Each section should be 1-3 sentences or a short bullet list at most"
+        MESSAGE_RULES="- Be brief and concise — use short sentences, no filler, no repetition
+- Each section should be 1-3 sentences or a short bullet list at most
+- For the JIRA ID section, output ONLY the JIRA ticket ID (e.g., SWDEV-12345) — no prefix like Resolves, Fixes, Closes, etc."
 
-    SQUASH_RULES="- type is one of: feat, fix, refactor, docs, test, chore, style, perf, ci, build
+        SQUASH_RULES="- type is one of: feat, fix, refactor, docs, test, chore, style, perf, ci, build
 - Subject line: capitalize first letter, imperative mood, no period, max 72 characters
 - Include the PR number (#$PR_NUM) at the end of the subject line
 - Body: 1-3 short bullet points summarizing the key changes, separated from subject by a blank line
 - Wrap body lines at 72 characters; break mid-sentence if needed to stay within the limit"
+    fi
 
     # --- Build prompt based on mode ---
     case "$MODE" in
