@@ -245,7 +245,7 @@ Write-Host ""
 
 try {
     if ($Agent -like "*copilot*") {
-        $RawOutput = & $Agent -p $Prompt 2>&1
+        $RawOutput = & $Agent -p --trust $Prompt 2>&1
         if ($LASTEXITCODE -ne 0) { throw "Agent call failed." }
         
         # Clean copilot output
@@ -270,7 +270,7 @@ try {
             }
         }
     } else {
-        $Message = (& $Agent -p $Prompt 2>&1) -join "`n"
+        $Message = (& $Agent -p --trust $Prompt 2>&1) -join "`n"
         if ($LASTEXITCODE -ne 0) { throw "Agent call failed." }
     }
 } catch {

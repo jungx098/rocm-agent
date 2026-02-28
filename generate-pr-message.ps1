@@ -295,7 +295,7 @@ $template
 Write-Host "Generating via $Agent (mode: $Mode) ..." -ForegroundColor Cyan
 
 try {
-    $raw = $prompt | & $Agent chat
+    $raw = $prompt | & $Agent -p --trust
     $message = if ($raw -is [array]) { $raw -join "`n" } else { "$raw" }
 } catch {
     Write-Error "Agent call failed: $_"

@@ -174,7 +174,7 @@ $diff
 Write-Host "Generating commit message via $Agent ..." -ForegroundColor Cyan
 
 try {
-    $raw = $prompt | & $Agent chat
+    $raw = $prompt | & $Agent -p --trust
     $message = if ($raw -is [array]) { $raw -join "`n" } else { "$raw" }
     $message = $message -replace "`r`n", "`n" -replace "`r", "`n"
 } catch {

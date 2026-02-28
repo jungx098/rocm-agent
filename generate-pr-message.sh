@@ -353,7 +353,7 @@ $TEMPLATE"
             END { print message; }
         ')
     else
-        if ! MESSAGE=$(echo "$PROMPT" | "$AGENT_CMD" chat); then
+        if ! MESSAGE=$(echo "$PROMPT" | "$AGENT_CMD" -p --trust); then
             echo "Error: Agent call failed." >&2
             exit 1
         fi
