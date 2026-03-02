@@ -119,21 +119,21 @@ if [ $USE_NATIVE -eq 1 ]; then
     echo "Collecting $SOURCE_LABEL ..." >&2
 
     if [ "$MODE" = "amend" ]; then
-        DIFF=$(git diff --cached HEAD~1)
+        DIFF=$(git diff --cached HEAD~1 | tr -d '\0')
         STAT=$(git diff --cached HEAD~1 --stat)
         FILE_LIST=$(git diff --cached HEAD~1 --name-status | while IFS=$'\t' read -r status file; do
             parse_file_status "$status" "$file"
         done)
         EXISTING_MSG=$(git log -1 --format="%B" HEAD | sed '/^$/d')
     elif [ "$MODE" = "commit" ]; then
-        DIFF=$(git diff "$COMMIT_HASH~1" "$COMMIT_HASH")
+        DIFF=$(git diff "$COMMIT_HASH~1" "$COMMIT_HASH" | tr -d '\0')
         STAT=$(git diff "$COMMIT_HASH~1" "$COMMIT_HASH" --stat)
         FILE_LIST=$(git diff "$COMMIT_HASH~1" "$COMMIT_HASH" --name-status | while IFS=$'\t' read -r status file; do
             parse_file_status "$status" "$file"
         done)
         EXISTING_MSG=$(git log -1 --format="%B" "$COMMIT_HASH" | sed '/^$/d')
     else
-        DIFF=$(git diff --cached)
+        DIFF=$(git diff --cached | tr -d '\0')
         STAT=$(git diff --cached --stat)
         FILE_LIST=$(git diff --cached --name-status | while IFS=$'\t' read -r status file; do
             parse_file_status "$status" "$file"
