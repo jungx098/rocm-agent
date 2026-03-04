@@ -170,11 +170,12 @@ $fileList
 $diff
 "@
 
-# --- Extract JIRA ID from title or body ---
+# --- Extract JIRA ID from title or body (ignore HTML comment examples) ---
 $jiraId = $null
+$bodyNoComments = $body -replace '(?s)<!--.*?-->', ''
 if ($title -match '([A-Z][A-Z0-9]+-\d+)') {
     $jiraId = $Matches[1]
-} elseif ($body -match '([A-Z][A-Z0-9]+-\d+)') {
+} elseif ($bodyNoComments -match '([A-Z][A-Z0-9]+-\d+)') {
     $jiraId = $Matches[1]
 }
 
@@ -211,7 +212,8 @@ if ($jiraId) {
     $messageRules = @"
 - Be brief and concise — use short sentences, no filler, no repetition
 - Each section should be 1-3 sentences or a short bullet list at most
-- For the JIRA ID section, output ONLY the JIRA ticket ID (e.g., SWDEV-12345) — no prefix like Resolves, Fixes, Closes, etc.
+- For the JIRA ID section, output ONLY the JIRA ticket ID if one exists in the PR title or description — no prefix like Resolves, Fixes, Closes, etc.
+- Ignore any example/placeholder JIRA IDs in the template HTML comments (e.g., SWDEV-12345 is NOT a real ID)
 "@
 
     $squashRules = @"

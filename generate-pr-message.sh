@@ -218,11 +218,12 @@ $FILE_LIST
 
 $DIFF"
 
-    # --- Extract JIRA ID from title or body ---
+    # --- Extract JIRA ID from title or body (ignore HTML comment examples) ---
     JIRA_ID=""
+    BODY_NO_COMMENTS=$(echo "$BODY" | perl -0pe 's/<!--.*?-->//gs' 2>/dev/null || echo "$BODY" | sed 's/<!--[^>]*-->//g')
     if [[ "$TITLE" =~ ([A-Z][A-Z0-9]+-[0-9]+) ]]; then
         JIRA_ID="${BASH_REMATCH[1]}"
-    elif [[ "$BODY" =~ ([A-Z][A-Z0-9]+-[0-9]+) ]]; then
+    elif [[ "$BODY_NO_COMMENTS" =~ ([A-Z][A-Z0-9]+-[0-9]+) ]]; then
         JIRA_ID="${BASH_REMATCH[1]}"
     fi
 
@@ -250,7 +251,8 @@ $DIFF"
 
         MESSAGE_RULES="- Be brief and concise — use short sentences, no filler, no repetition
 - Each section should be 1-3 sentences or a short bullet list at most
-- For the JIRA ID section, output ONLY the JIRA ticket ID (e.g., SWDEV-12345) — no prefix like Resolves, Fixes, Closes, etc."
+- For the JIRA ID section, output ONLY the JIRA ticket ID if one exists in the PR title or description — no prefix like Resolves, Fixes, Closes, etc.
+- Ignore any example/placeholder JIRA IDs in the template HTML comments (e.g., SWDEV-12345 is NOT a real ID)"
 
         SQUASH_RULES="- type is one of: feat, fix, refactor, docs, test, chore, style, perf, ci, build
 - Subject line: capitalize first letter, imperative mood, no period, max 72 characters
