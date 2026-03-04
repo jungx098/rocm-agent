@@ -89,8 +89,12 @@ if [ $USE_NATIVE -eq 1 ]; then
 
     # --- GitHub API headers ---
     GH_HEADERS=(-H "Accept: application/vnd.github.v3+json" -H "User-Agent: PR-Message-Generator")
-    if [ -n "${GITHUB_TOKEN:-}" ]; then
-        GH_HEADERS+=(-H "Authorization: Bearer $GITHUB_TOKEN")
+    GH_TOKEN="${GITHUB_TOKEN:-}"
+    if [ -z "$GH_TOKEN" ] && command -v gh >/dev/null 2>&1; then
+        GH_TOKEN=$(gh auth token 2>/dev/null || true)
+    fi
+    if [ -n "$GH_TOKEN" ]; then
+        GH_HEADERS+=(-H "Authorization: Bearer $GH_TOKEN")
     fi
 
     API_BASE="https://api.github.com/repos/$OWNER/$REPO/pulls/$PR_NUM"

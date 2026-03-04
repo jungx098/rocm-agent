@@ -1,23 +1,28 @@
 <#
 .SYNOPSIS
-    Generates a commit message from staged changes, an existing commit, or an amend scenario using an AI agent.
+    Generates a commit message from staged changes, an existing commit, a range of commits, or an amend scenario using an AI agent.
 .USAGE
-    .\generate-commit-message.ps1 [<CommitHash>] [-Amend] [-OutputFile <path>] [-Agent <command>] [-MaxDiffLength <int>]
+    .\generate-commit-message.ps1 [<CommitHash>] [<CommitHash2>] [-Amend] [-OutputFile <path>] [-Agent <command>] [-MaxDiffLength <int>]
 .EXAMPLE
     .\generate-commit-message.ps1
     .\generate-commit-message.ps1 abc1234
     .\generate-commit-message.ps1 HEAD~1
+    .\generate-commit-message.ps1 abc1234 def5678
     .\generate-commit-message.ps1 -Amend
     .\generate-commit-message.ps1 -OutputFile commit-msg.txt
 .NOTES
     Requires agent.cmd (or the command specified by -Agent) to be available in PATH.
     Must be run from within a git repository. When no commit hash is given, staged changes are used.
+    When two commit hashes are given, the diff between them is used (git diff HASH1 HASH2).
     With -Amend, the diff covers HEAD~1 to the current index (HEAD changes + staged changes combined).
 #>
 
 param(
     [Parameter(Mandatory=$false, Position=0)]
     [string]$CommitHash,
+
+    [Parameter(Mandatory=$false, Position=1)]
+    [string]$CommitHash2,
 
     [Parameter(Mandatory=$false)]
     [switch]$Amend,
@@ -59,6 +64,19 @@ if ($Amend) {
     }
     $mode = "amend"
     $sourceLabel = "amend HEAD (HEAD changes + staged)"
+} elseif ($CommitHash -and $CommitHash2) {
+    $resolved1 = git rev-parse --verify "$CommitHash" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Invalid commit reference: $CommitHash"
+        exit 1
+    }
+    $resolved2 = git rev-parse --verify "$CommitHash2" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Invalid commit reference: $CommitHash2"
+        exit 1
+    }
+    $mode = "range"
+    $sourceLabel = "range $($resolved1.Substring(0,8))..$($resolved2.Substring(0,8))"
 } elseif ($CommitHash) {
     $resolved = git rev-parse --verify "$CommitHash" 2>&1
     if ($LASTEXITCODE -ne 0) {
@@ -100,6 +118,12 @@ if ($mode -eq "amend") {
     $fileList = git diff --cached HEAD~1 --name-status | ForEach-Object { & $parseFileStatus $_ }
     $existingMsg = git log -1 --format="%B" HEAD
     $existingMsg = ($existingMsg | Out-String).Trim()
+} elseif ($mode -eq "range") {
+    $diff = git diff "$CommitHash" "$CommitHash2"
+    $stat = git diff "$CommitHash" "$CommitHash2" --stat
+    $fileList = git diff "$CommitHash" "$CommitHash2" --name-status | ForEach-Object { & $parseFileStatus $_ }
+    $rangeLog = git log --oneline "$CommitHash..$CommitHash2" 2>$null
+    $existingMsg = if ($rangeLog) { ($rangeLog | Out-String).Trim() } else { $null }
 } elseif ($mode -eq "commit") {
     $diff = git diff "$CommitHash~1" "$CommitHash"
     $stat = git diff "$CommitHash~1" "$CommitHash" --stat
@@ -125,10 +149,11 @@ if ($diff.Length -gt $MaxDiffLength) {
 }
 
 # --- Build prompt ---
+$existingMsgHeader = if ($mode -eq "range") { "## Commits in Range" } else { "## Existing Commit Message" }
 $existingMsgSection = if ($existingMsg) {
     @"
 
-## Existing Commit Message
+$existingMsgHeader
 
 $existingMsg
 "@
@@ -183,8 +208,16 @@ try {
 }
 
 # --- Output ---
+if ($existingMsg) {
+    $existingLabel = if ($mode -eq "range") { "Existing Commits in Range" } else { "Existing Commit Message" }
+    Write-Host ""
+    Write-Host "--- $existingLabel ---" -ForegroundColor DarkGray
+    Write-Host ""
+    $existingMsg -split "`n" | ForEach-Object { Write-Host $_ -ForegroundColor DarkGray }
+}
+
 Write-Host ""
-Write-Host "--- Commit Message ---" -ForegroundColor Green
+Write-Host "--- Generated Commit Message ---" -ForegroundColor Green
 Write-Host ""
 $message -split "`n" | ForEach-Object { Write-Host $_ }
 

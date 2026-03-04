@@ -54,8 +54,12 @@ $ghHeaders = @{
     "Accept"     = "application/vnd.github.v3+json"
     "User-Agent" = "PR-Message-Generator"
 }
-if ($env:GITHUB_TOKEN) {
-    $ghHeaders["Authorization"] = "Bearer $env:GITHUB_TOKEN"
+$token = $env:GITHUB_TOKEN
+if (-not $token -and (Get-Command "gh" -ErrorAction SilentlyContinue)) {
+    $token = gh auth token 2>$null
+}
+if ($token) {
+    $ghHeaders["Authorization"] = "Bearer $token"
 }
 
 $apiBase = "https://api.github.com/repos/$owner/$repo/pulls/$prNum"

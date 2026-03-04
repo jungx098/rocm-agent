@@ -8,6 +8,7 @@ if "%~1"=="-h" goto :usage
 if "%~1"=="--help" goto :usage
 
 set "COMMIT_HASH="
+set "COMMIT_HASH2="
 set "OUTPUT_FILE="
 set "AGENT="
 set "MAX_DIFF="
@@ -17,6 +18,14 @@ if "%~1"=="" goto :done_args
 set "_first=%~1"
 if not "!_first:~0,1!"=="-" (
     set "COMMIT_HASH=%~1"
+    shift
+)
+
+rem Second non-flag argument is the optional second commit hash (for range)
+if "%~1"=="" goto :done_args
+set "_second=%~1"
+if not "!_second:~0,1!"=="-" (
+    set "COMMIT_HASH2=%~1"
     shift
 )
 
@@ -55,6 +64,7 @@ exit /b 1
 :found_ps
 set "ARGS=-ExecutionPolicy Bypass -File "%PS1_SCRIPT%""
 if defined COMMIT_HASH set "ARGS=!ARGS! "%COMMIT_HASH%""
+if defined COMMIT_HASH2 set "ARGS=!ARGS! "%COMMIT_HASH2%""
 if defined OUTPUT_FILE set "ARGS=!ARGS! -OutputFile "%OUTPUT_FILE%""
 if defined AGENT set "ARGS=!ARGS! -Agent "%AGENT%""
 if defined MAX_DIFF set "ARGS=!ARGS! -MaxDiffLength %MAX_DIFF%"
@@ -63,11 +73,12 @@ if defined MAX_DIFF set "ARGS=!ARGS! -MaxDiffLength %MAX_DIFF%"
 exit /b %errorlevel%
 
 :usage
-echo Usage: %~nx0 [COMMIT_HASH] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH] >&2
+echo Usage: %~nx0 [COMMIT_HASH] [COMMIT_HASH2] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH] >&2
 echo. >&2
 echo Examples: >&2
 echo   %~nx0 >&2
 echo   %~nx0 abc1234 >&2
+echo   %~nx0 abc1234 def5678 >&2
 echo   %~nx0 HEAD~1 -o commit-msg.txt >&2
 echo   %~nx0 -a cursor-agent >&2
 exit /b 1

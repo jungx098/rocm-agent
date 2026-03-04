@@ -7,11 +7,12 @@ SCRIPT_NAME="$(basename "$0")"
 
 usage() {
     cat >&2 <<EOF
-Usage: $SCRIPT_NAME [COMMIT_HASH] [--amend] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH]
+Usage: $SCRIPT_NAME [COMMIT_HASH] [COMMIT_HASH2] [--amend] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DIFF_LENGTH]
 
 Examples:
   $SCRIPT_NAME
   $SCRIPT_NAME abc1234
+  $SCRIPT_NAME abc1234 def5678
   $SCRIPT_NAME HEAD~1 -o commit-msg.txt
   $SCRIPT_NAME -a copilot
   $SCRIPT_NAME --amend
@@ -35,6 +36,7 @@ case "$(uname -s)" in
 esac
 
 COMMIT_HASH=""
+COMMIT_HASH2=""
 OUTPUT_FILE=""
 AGENT_CMD="${AGENT:-agent}"
 MAX_DIFF_LENGTH=12000
@@ -43,6 +45,12 @@ AMEND=0
 # First non-flag argument is the optional commit hash
 if [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; then
     COMMIT_HASH="$1"
+    shift
+fi
+
+# Second non-flag argument is the optional second commit hash (for range)
+if [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; then
+    COMMIT_HASH2="$1"
     shift
 fi
 
@@ -85,6 +93,17 @@ if [ $USE_NATIVE -eq 1 ]; then
         fi
         MODE="amend"
         SOURCE_LABEL="amend HEAD (HEAD changes + staged)"
+    elif [ -n "$COMMIT_HASH" ] && [ -n "$COMMIT_HASH2" ]; then
+        if ! RESOLVED1=$(git rev-parse --verify "$COMMIT_HASH" 2>&1); then
+            echo "Error: Invalid commit reference: $COMMIT_HASH" >&2
+            exit 1
+        fi
+        if ! RESOLVED2=$(git rev-parse --verify "$COMMIT_HASH2" 2>&1); then
+            echo "Error: Invalid commit reference: $COMMIT_HASH2" >&2
+            exit 1
+        fi
+        MODE="range"
+        SOURCE_LABEL="range ${RESOLVED1:0:8}..${RESOLVED2:0:8}"
     elif [ -n "$COMMIT_HASH" ]; then
         if ! RESOLVED=$(git rev-parse --verify "$COMMIT_HASH" 2>&1); then
             echo "Error: Invalid commit reference: $COMMIT_HASH" >&2
@@ -125,6 +144,13 @@ if [ $USE_NATIVE -eq 1 ]; then
             parse_file_status "$status" "$file"
         done)
         EXISTING_MSG=$(git log -1 --format="%B" HEAD | sed '/^$/d')
+    elif [ "$MODE" = "range" ]; then
+        DIFF=$(git diff "$COMMIT_HASH" "$COMMIT_HASH2")
+        STAT=$(git diff "$COMMIT_HASH" "$COMMIT_HASH2" --stat)
+        FILE_LIST=$(git diff "$COMMIT_HASH" "$COMMIT_HASH2" --name-status | while IFS=$'\t' read -r status file; do
+            parse_file_status "$status" "$file"
+        done)
+        EXISTING_MSG=$(git log --oneline "$COMMIT_HASH..$COMMIT_HASH2" 2>/dev/null || true)
     elif [ "$MODE" = "commit" ]; then
         DIFF=$(git diff "$COMMIT_HASH~1" "$COMMIT_HASH" | tr -d '\0')
         STAT=$(git diff "$COMMIT_HASH~1" "$COMMIT_HASH" --stat)
@@ -152,7 +178,12 @@ if [ $USE_NATIVE -eq 1 ]; then
     # --- Build prompt ---
     EXISTING_MSG_SECTION=""
     if [ -n "$EXISTING_MSG" ]; then
-        EXISTING_MSG_SECTION=$'\n\n'"## Existing Commit Message"$'\n\n'"$EXISTING_MSG"
+        if [ "$MODE" = "range" ]; then
+            EXISTING_MSG_HEADER="## Commits in Range"
+        else
+            EXISTING_MSG_HEADER="## Existing Commit Message"
+        fi
+        EXISTING_MSG_SECTION=$'\n\n'"$EXISTING_MSG_HEADER"$'\n\n'"$EXISTING_MSG"
     fi
 
     PROMPT=$(cat <<EOF
@@ -226,7 +257,20 @@ EOF
     fi
 
     # --- Output ---
-    echo "--- Commit Message ---" >&2
+    if [ -n "$EXISTING_MSG" ]; then
+        if [ "$MODE" = "range" ]; then
+            EXISTING_LABEL="Existing Commits in Range"
+        else
+            EXISTING_LABEL="Existing Commit Message"
+        fi
+        echo "" >&2
+        echo "--- $EXISTING_LABEL ---" >&2
+        echo "" >&2
+        echo "$EXISTING_MSG" >&2
+    fi
+
+    echo "" >&2
+    echo "--- Generated Commit Message ---" >&2
     echo "" >&2
     echo "$MESSAGE" >&2
 
@@ -282,6 +326,7 @@ fi
 
 ARGS=(-ExecutionPolicy Bypass -File "$(to_win_path "$PS1_SCRIPT")")
 [ -n "$COMMIT_HASH" ] && ARGS+=("$COMMIT_HASH")
+[ -n "$COMMIT_HASH2" ] && ARGS+=("$COMMIT_HASH2")
 [ $AMEND -eq 1 ]      && ARGS+=(-Amend)
 [ -n "$OUTPUT_FILE" ] && ARGS+=(-OutputFile "$(to_win_path "$OUTPUT_FILE")")
 [ -n "$AGENT_CMD" ] && [ "$AGENT_CMD" != "agent" ] && ARGS+=(-Agent "$AGENT_CMD")
