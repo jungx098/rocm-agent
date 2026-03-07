@@ -136,6 +136,8 @@ if ($mode -eq "amend") {
     $fileList = git diff --cached --name-status | ForEach-Object { & $parseFileStatus $_ }
     $existingMsg = $null
 }
+$diff = if ($diff -is [array]) { $diff -join "`n" } else { "$diff" }
+$stat = if ($stat -is [array]) { $stat -join "`n" } else { "$stat" }
 $fileList = $fileList -join "`n"
 
 $branch = git branch --show-current 2>$null
