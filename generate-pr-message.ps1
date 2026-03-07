@@ -71,25 +71,64 @@ try {
     exit 1
 }
 
-# --- Fetch changed file list ---
+# --- Fetch changed file list (paginated) ---
 Write-Host "Fetching file list ..." -ForegroundColor Cyan
+$fileList = ""
+$fileListCount = 0
 try {
-    $files = Invoke-RestMethod -Uri "$apiBase/files" -Headers $ghHeaders -Method Get
-    $fileList = ($files | ForEach-Object {
-        "$($_.status): $($_.filename) (+$($_.additions)/-$($_.deletions))"
-    }) -join "`n"
+    for ($page = 1; $page -le 3; $page++) {
+        $pageFiles = Invoke-RestMethod -Uri "$apiBase/files?per_page=100&page=$page" -Headers $ghHeaders -Method Get
+        if (-not $pageFiles -or $pageFiles.Count -eq 0) { break }
+        $pageList = ($pageFiles | ForEach-Object {
+            "$($_.status): $($_.filename) (+$($_.additions)/-$($_.deletions))"
+        }) -join "`n"
+        if ($fileList) { $fileList += "`n" }
+        $fileList += $pageList
+        $fileListCount += $pageFiles.Count
+        if ($pageFiles.Count -lt 100) { break }
+    }
 } catch {
     $fileList = "(could not fetch file list)"
 }
+if (-not $fileList) { $fileList = "(could not fetch file list)" }
+$fileListNote = ""
+if ($fileListCount -gt 0 -and $changedFiles -gt $fileListCount) {
+    $fileListNote = " (showing $fileListCount of $changedFiles files)"
+}
+
+# --- Fetch commit list (paginated) ---
+Write-Host "Fetching commits ..." -ForegroundColor Cyan
+$commitList = ""
+$commitCount = 0
+try {
+    for ($page = 1; $page -le 3; $page++) {
+        $pageCommits = Invoke-RestMethod -Uri "$apiBase/commits?per_page=100&page=$page" -Headers $ghHeaders -Method Get
+        if (-not $pageCommits -or $pageCommits.Count -eq 0) { break }
+        $pageList = ($pageCommits | ForEach-Object {
+            "$($_.sha.Substring(0,8)) $($_.commit.message.Split("`n")[0])"
+        }) -join "`n"
+        if ($commitList) { $commitList += "`n" }
+        $commitList += $pageList
+        $commitCount += $pageCommits.Count
+        if ($pageCommits.Count -lt 100) { break }
+    }
+} catch {
+    $commitList = "(could not fetch commits)"
+}
+if (-not $commitList) { $commitList = "(could not fetch commits)" }
 
 # --- Fetch diff ---
 Write-Host "Fetching diff ..." -ForegroundColor Cyan
 $diffHeaders = $ghHeaders.Clone()
 $diffHeaders["Accept"] = "application/vnd.github.v3.diff"
+$diffTruncated = $false
+$diffFullLength = 0
 try {
     $diff = Invoke-RestMethod -Uri $apiBase -Headers $diffHeaders -Method Get
+    $diffFullLength = $diff.Length
     if ($diff.Length -gt $MaxDiffLength) {
-        $diff = $diff.Substring(0, $MaxDiffLength) + "`n... [diff truncated at $MaxDiffLength chars] ..."
+        $diff = $diff.Substring(0, $MaxDiffLength) + "`n... [diff truncated at $MaxDiffLength of $diffFullLength chars] ..."
+        $diffTruncated = $true
     }
 } catch {
     $diff = "(could not fetch diff)"
@@ -146,6 +185,16 @@ $firstCommentSection = if ($firstComment) {
     "`n## First Comment (by @$firstCommentAuthor)`n`n$firstComment"
 } else { "" }
 
+$commitSection = ""
+if ($commitList -ne "(could not fetch commits)") {
+    $commitSection = "`n`n## Commits ($commitCount total)`n`n$commitList"
+}
+
+$dataNote = ""
+if ($diffTruncated) {
+    $dataNote = "`n`nNOTE: The diff is truncated (showing $MaxDiffLength of $diffFullLength chars). Rely on the commit list and file list for full scope."
+}
+
 $prContext = @"
 
 # PR Information
@@ -160,10 +209,12 @@ $prContext = @"
 
 $body
 $firstCommentSection
+$commitSection
 
-## Changed Files
+## Changed Files${fileListNote}
 
 $fileList
+${dataNote}
 
 ## Diff
 

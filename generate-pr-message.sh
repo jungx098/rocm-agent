@@ -129,12 +129,23 @@ if [ $USE_NATIVE -eq 1 ]; then
         [ -z "$BODY" ] && BODY="(no description provided)"
     fi
 
-    # --- Fetch file list ---
+    # --- Fetch file list (paginated) ---
     echo "Fetching file list ..." >&2
-    if FILES_JSON=$(curl -s "${GH_HEADERS[@]}" "$API_BASE/files" 2>&1) && [ -n "$FILES_JSON" ]; then
-        if command -v jq >/dev/null 2>&1; then
-            FILE_LIST=$(echo "$FILES_JSON" | jq -r '.[] | "\(.status): \(.filename) (+\(.additions)/-\(.deletions))"' 2>/dev/null || echo "(could not parse file list)")
-        else
+    FILE_LIST=""
+    FILE_LIST_COUNT=0
+    if command -v jq >/dev/null 2>&1; then
+        for page in $(seq 1 3); do
+            PAGE_JSON=$(curl -s "${GH_HEADERS[@]}" "$API_BASE/files?per_page=100&page=$page" 2>/dev/null) || break
+            PAGE_COUNT=$(echo "$PAGE_JSON" | jq 'length' 2>/dev/null)
+            [ -z "$PAGE_COUNT" ] || [ "$PAGE_COUNT" -eq 0 ] && break
+            PAGE_LIST=$(echo "$PAGE_JSON" | jq -r '.[] | "\(.status): \(.filename) (+\(.additions)/-\(.deletions))"' 2>/dev/null)
+            [ -n "$FILE_LIST" ] && FILE_LIST="$FILE_LIST"$'\n'
+            FILE_LIST="$FILE_LIST$PAGE_LIST"
+            FILE_LIST_COUNT=$((FILE_LIST_COUNT + PAGE_COUNT))
+            [ "$PAGE_COUNT" -lt 100 ] && break
+        done
+    else
+        if FILES_JSON=$(curl -s "${GH_HEADERS[@]}" "$API_BASE/files?per_page=100" 2>&1) && [ -n "$FILES_JSON" ]; then
             FILE_LIST=$(echo "$FILES_JSON" | grep -o '"filename"[[:space:]]*:[[:space:]]*"[^"]*".*"additions"[[:space:]]*:[[:space:]]*[0-9]*.*"deletions"[[:space:]]*:[[:space:]]*[0-9]*.*"status"[[:space:]]*:[[:space:]]*"[^"]*"' | while read -r line; do
                 filename=$(echo "$line" | grep -o '"filename"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*: "\(.*\)"/\1/')
                 adds=$(echo "$line" | grep -o '"additions"[[:space:]]*:[[:space:]]*[0-9]*' | sed 's/.*: //')
@@ -143,18 +154,48 @@ if [ $USE_NATIVE -eq 1 ]; then
                 echo "$status: $filename (+$adds/-$dels)"
             done)
         fi
-    else
-        FILE_LIST="(could not fetch file list)"
     fi
+    [ -z "$FILE_LIST" ] && FILE_LIST="(could not fetch file list)"
+    FILE_LIST_NOTE=""
+    if [ "$FILE_LIST_COUNT" -gt 0 ] 2>/dev/null && [ "$CHANGED_FILES" -gt "$FILE_LIST_COUNT" ] 2>/dev/null; then
+        FILE_LIST_NOTE=" (showing $FILE_LIST_COUNT of $CHANGED_FILES files)"
+    fi
+
+    # --- Fetch commit list (paginated) ---
+    echo "Fetching commits ..." >&2
+    COMMIT_LIST=""
+    COMMIT_COUNT=0
+    if command -v jq >/dev/null 2>&1; then
+        for page in $(seq 1 3); do
+            PAGE_JSON=$(curl -s "${GH_HEADERS[@]}" "$API_BASE/commits?per_page=100&page=$page" 2>/dev/null) || break
+            PAGE_COUNT=$(echo "$PAGE_JSON" | jq 'length' 2>/dev/null)
+            [ -z "$PAGE_COUNT" ] || [ "$PAGE_COUNT" -eq 0 ] && break
+            PAGE_LIST=$(echo "$PAGE_JSON" | jq -r '.[] | "\(.sha[:8]) \(.commit.message | split("\n")[0])"' 2>/dev/null)
+            [ -n "$COMMIT_LIST" ] && COMMIT_LIST="$COMMIT_LIST"$'\n'
+            COMMIT_LIST="$COMMIT_LIST$PAGE_LIST"
+            COMMIT_COUNT=$((COMMIT_COUNT + PAGE_COUNT))
+            [ "$PAGE_COUNT" -lt 100 ] && break
+        done
+    else
+        if COMMITS_JSON=$(curl -s "${GH_HEADERS[@]}" "$API_BASE/commits?per_page=100" 2>&1) && [ -n "$COMMITS_JSON" ]; then
+            COMMIT_LIST=$(echo "$COMMITS_JSON" | grep -o '"message" *: *"[^"]*"' | sed 's/"message" *: *"\(.*\)"/\1/' | head -100)
+            COMMIT_COUNT=$(echo "$COMMIT_LIST" | wc -l | tr -d ' ')
+        fi
+    fi
+    [ -z "$COMMIT_LIST" ] && COMMIT_LIST="(could not fetch commits)"
 
     # --- Fetch diff ---
     echo "Fetching diff ..." >&2
     DIFF_HEADERS=("${GH_HEADERS[@]}")
     DIFF_HEADERS[0]="-H"
     DIFF_HEADERS[1]="Accept: application/vnd.github.v3.diff"
+    DIFF_TRUNCATED=0
+    DIFF_FULL_LENGTH=0
     if DIFF=$(curl -s "${DIFF_HEADERS[@]}" "$API_BASE"); then
-        if [ ${#DIFF} -gt $MAX_DIFF_LENGTH ]; then
-            DIFF="${DIFF:0:$MAX_DIFF_LENGTH}"$'\n'"... [diff truncated at $MAX_DIFF_LENGTH chars] ..."
+        DIFF_FULL_LENGTH=${#DIFF}
+        if [ $DIFF_FULL_LENGTH -gt $MAX_DIFF_LENGTH ]; then
+            DIFF="${DIFF:0:$MAX_DIFF_LENGTH}"$'\n'"... [diff truncated at $MAX_DIFF_LENGTH of $DIFF_FULL_LENGTH chars] ..."
+            DIFF_TRUNCATED=1
         fi
     else
         DIFF="(could not fetch diff)"
@@ -197,6 +238,16 @@ if [ $USE_NATIVE -eq 1 ]; then
         FIRST_COMMENT_SECTION=$'\n\n'"## First Comment (by @$FIRST_COMMENT_AUTHOR)"$'\n\n'"$FIRST_COMMENT"
     fi
 
+    COMMIT_SECTION=""
+    if [ "$COMMIT_LIST" != "(could not fetch commits)" ]; then
+        COMMIT_SECTION=$'\n\n'"## Commits ($COMMIT_COUNT total)"$'\n\n'"$COMMIT_LIST"
+    fi
+
+    DATA_NOTE=""
+    if [ $DIFF_TRUNCATED -eq 1 ]; then
+        DATA_NOTE=$'\n\n'"NOTE: The diff is truncated (showing ${MAX_DIFF_LENGTH} of ${DIFF_FULL_LENGTH} chars). Rely on the commit list and file list for full scope."
+    fi
+
     PR_CONTEXT="
 # PR Information
 
@@ -208,12 +259,12 @@ if [ $USE_NATIVE -eq 1 ]; then
 
 ## Original PR Description
 
-$BODY$FIRST_COMMENT_SECTION
+$BODY$FIRST_COMMENT_SECTION$COMMIT_SECTION
 
-## Changed Files
+## Changed Files${FILE_LIST_NOTE}
 
 $FILE_LIST
-
+${DATA_NOTE}
 ## Diff
 
 $DIFF"
