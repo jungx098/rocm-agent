@@ -174,7 +174,12 @@ Rules:
 - Subject line: capitalize first letter, imperative mood, no period, max 50 characters
 - Body: 1-3 short bullet points summarizing key changes, separated from subject by a blank line
 - Wrap body lines at 72 characters; break mid-sentence if needed to stay within the limit
-- Output ONLY the commit message, nothing else — no explanation, no quotes, no markdown fences
+
+CRITICAL OUTPUT RULES:
+- Respond with ONLY the raw commit message text — nothing before it, nothing after it
+- Do NOT include any preamble like "Here is the commit message" or "Based on the diff"
+- Do NOT wrap the message in markdown code fences or quotes
+- Your entire response must start with the type prefix (e.g. "feat:") and contain nothing else
 
 # Context
 
@@ -206,6 +211,37 @@ try {
     $message = $message -replace "`r`n", "`n" -replace "`r", "`n"
 } catch {
     Write-Error "Agent call failed: $_"
+    exit 1
+}
+
+# --- Sanitize AI output (strip preamble, fences, postamble) ---
+$lines = $message -split "`n"
+$lines = $lines | Where-Object { $_ -notmatch '^\s*```' }
+
+$commitTypeRe = '^(feat|fix|refactor|docs|test|chore|style|perf|ci|build)(\(.+?\))?!?:'
+$startIdx = -1
+for ($i = 0; $i -lt $lines.Count; $i++) {
+    if ($lines[$i] -match $commitTypeRe) {
+        $startIdx = $i
+        break
+    }
+}
+if ($startIdx -ge 0) {
+    $lines = @($lines[$startIdx..($lines.Count - 1)])
+}
+
+$endIdx = $lines.Count - 1
+while ($endIdx -ge 0 -and ($lines[$endIdx] -match '^\s*$' -or $lines[$endIdx] -match '(?i)^(let me know|hope this|feel free|this (commit |message )|I hope|if you)')) {
+    $endIdx--
+}
+if ($endIdx -ge 0 -and $endIdx -lt $lines.Count - 1) {
+    $lines = @($lines[0..$endIdx])
+}
+
+$message = ($lines -join "`n").Trim()
+
+if (-not $message) {
+    Write-Error "Sanitization removed all content — agent returned no valid commit message."
     exit 1
 }
 

@@ -199,7 +199,12 @@ Rules:
 - Subject line: capitalize first letter, imperative mood, no period, max 50 characters
 - Body: 1-3 short bullet points summarizing key changes, separated from subject by a blank line
 - Wrap body lines at 72 characters; break mid-sentence if needed to stay within the limit
-- Output ONLY the commit message, nothing else — no explanation, no quotes, no markdown fences
+
+CRITICAL OUTPUT RULES:
+- Respond with ONLY the raw commit message text — nothing before it, nothing after it
+- Do NOT include any preamble like "Here is the commit message" or "Based on the diff"
+- Do NOT wrap the message in markdown code fences or quotes
+- Your entire response must start with the type prefix (e.g. "feat:") and contain nothing else
 
 # Context
 
@@ -254,6 +259,24 @@ EOF
             echo "Error: Agent call failed." >&2
             exit 1
         fi
+    fi
+
+    # --- Sanitize AI output (strip preamble, fences, postamble) ---
+    MESSAGE=$(echo "$MESSAGE" | grep -v '^\s*```')
+
+    COMMIT_TYPE_RE='^(feat|fix|refactor|docs|test|chore|style|perf|ci|build)(\(.+\))?!?:'
+    FIRST_LINE=$(echo "$MESSAGE" | grep -n -E "$COMMIT_TYPE_RE" | head -1 | cut -d: -f1)
+    if [ -n "$FIRST_LINE" ]; then
+        MESSAGE=$(echo "$MESSAGE" | tail -n +"$FIRST_LINE")
+    fi
+
+    MESSAGE=$(echo "$MESSAGE" | sed -e :a -e '/^\s*$/{ $d; N; ba; }' \
+        | grep -vi -E '^(let me know|hope this|feel free|this (commit |message )|I hope|if you)')
+    MESSAGE=$(echo "$MESSAGE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+
+    if [ -z "$MESSAGE" ]; then
+        echo "Error: Sanitization removed all content — agent returned no valid commit message." >&2
+        exit 1
     fi
 
     # --- Output ---
