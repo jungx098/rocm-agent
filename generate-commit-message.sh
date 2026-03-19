@@ -137,10 +137,14 @@ if [ $USE_NATIVE -eq 1 ]; then
     # --- Gather context ---
     echo "Collecting $SOURCE_LABEL ..." >&2
 
+    # Empty tree hash for diffing root commits that have no parent
+    EMPTY_TREE=$(git hash-object -t tree /dev/null)
+
     if [ "$MODE" = "amend" ]; then
-        DIFF=$(git diff --cached HEAD~1 | tr -d '\0')
-        STAT=$(git diff --cached HEAD~1 --stat)
-        FILE_LIST=$(git diff --cached HEAD~1 --name-status | while IFS=$'\t' read -r status file; do
+        AMEND_BASE=$(git rev-parse --verify HEAD~1 2>/dev/null || echo "$EMPTY_TREE")
+        DIFF=$(git diff --cached "$AMEND_BASE" | tr -d '\0')
+        STAT=$(git diff --cached "$AMEND_BASE" --stat)
+        FILE_LIST=$(git diff --cached "$AMEND_BASE" --name-status | while IFS=$'\t' read -r status file; do
             parse_file_status "$status" "$file"
         done)
         EXISTING_MSG=$(git log -1 --format="%B" HEAD | sed '/^$/d')
@@ -152,9 +156,10 @@ if [ $USE_NATIVE -eq 1 ]; then
         done)
         EXISTING_MSG=$(git log --oneline "$COMMIT_HASH..$COMMIT_HASH2" 2>/dev/null || true)
     elif [ "$MODE" = "commit" ]; then
-        DIFF=$(git diff "$COMMIT_HASH~1" "$COMMIT_HASH" | tr -d '\0')
-        STAT=$(git diff "$COMMIT_HASH~1" "$COMMIT_HASH" --stat)
-        FILE_LIST=$(git diff "$COMMIT_HASH~1" "$COMMIT_HASH" --name-status | while IFS=$'\t' read -r status file; do
+        COMMIT_BASE=$(git rev-parse --verify "$COMMIT_HASH~1" 2>/dev/null || echo "$EMPTY_TREE")
+        DIFF=$(git diff "$COMMIT_BASE" "$COMMIT_HASH" | tr -d '\0')
+        STAT=$(git diff "$COMMIT_BASE" "$COMMIT_HASH" --stat)
+        FILE_LIST=$(git diff "$COMMIT_BASE" "$COMMIT_HASH" --name-status | while IFS=$'\t' read -r status file; do
             parse_file_status "$status" "$file"
         done)
         EXISTING_MSG=$(git log -1 --format="%B" "$COMMIT_HASH" | sed '/^$/d')

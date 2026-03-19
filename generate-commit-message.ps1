@@ -112,10 +112,15 @@ $parseFileStatus = {
     "$status`: $($parts[1])"
 }
 
+# Empty tree hash for diffing root commits that have no parent
+$emptyTree = (git hash-object -t tree /dev/null)
+
 if ($mode -eq "amend") {
-    $diff = git diff --cached HEAD~1
-    $stat = git diff --cached HEAD~1 --stat
-    $fileList = git diff --cached HEAD~1 --name-status | ForEach-Object { & $parseFileStatus $_ }
+    $amendBase = git rev-parse --verify HEAD~1 2>$null
+    if (-not $amendBase) { $amendBase = $emptyTree }
+    $diff = git diff --cached $amendBase
+    $stat = git diff --cached $amendBase --stat
+    $fileList = git diff --cached $amendBase --name-status | ForEach-Object { & $parseFileStatus $_ }
     $existingMsg = git log -1 --format="%B" HEAD
     $existingMsg = ($existingMsg | Out-String).Trim()
 } elseif ($mode -eq "range") {
@@ -125,9 +130,11 @@ if ($mode -eq "amend") {
     $rangeLog = git log --oneline "$CommitHash..$CommitHash2" 2>$null
     $existingMsg = if ($rangeLog) { ($rangeLog | Out-String).Trim() } else { $null }
 } elseif ($mode -eq "commit") {
-    $diff = git diff "$CommitHash~1" "$CommitHash"
-    $stat = git diff "$CommitHash~1" "$CommitHash" --stat
-    $fileList = git diff "$CommitHash~1" "$CommitHash" --name-status | ForEach-Object { & $parseFileStatus $_ }
+    $commitBase = git rev-parse --verify "$CommitHash~1" 2>$null
+    if (-not $commitBase) { $commitBase = $emptyTree }
+    $diff = git diff $commitBase "$CommitHash"
+    $stat = git diff $commitBase "$CommitHash" --stat
+    $fileList = git diff $commitBase "$CommitHash" --name-status | ForEach-Object { & $parseFileStatus $_ }
     $existingMsg = git log -1 --format="%B" "$CommitHash"
     $existingMsg = ($existingMsg | Out-String).Trim()
 } else {
