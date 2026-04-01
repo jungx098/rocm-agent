@@ -12,6 +12,9 @@ param(
     [switch]$Help
 )
 
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+. (Join-Path $ScriptDir "prompts\Expand-PromptTemplate.ps1")
+
 function Show-Usage {
     @"
 Usage: generate-release-note.ps1 [HASH1] [HASH2] [-OutputFile FILE] [-Agent AGENT] [-MaxDiffLength LENGTH]
@@ -178,65 +181,16 @@ if ($Diff.Length -gt $MaxDiffLength) {
 }
 
 # --- Build prompt ---
-$Prompt = @"
-Generate release notes from the following git repository changes.
-
-Format the output as markdown with the following structure:
-
-# Release Title (e.g., "v2.0.0 - Major Performance Update")
-
-## Summary
-A brief overview paragraph of the key changes and improvements.
-
-## New Features
-- Feature 1
-- Feature 2
-
-## Bug Fixes
-- Fix 1
-- Fix 2
-
-## Improvements
-- Improvement 1
-- Improvement 2
-
-## Breaking Changes (if any)
-- Breaking change 1
-
-## Technical Details (optional)
-Additional technical information if relevant.
-
-Rules:
-- Include a descriptive release title as H1 (suggest version number if tags are present, or a descriptive name)
-- Be concise and user-friendly
-- Group related changes together
-- Highlight breaking changes prominently
-- Use clear, descriptive bullet points
-- Focus on user-facing changes, not implementation details
-- Output ONLY the release notes in markdown format, nothing else — no explanation, no quotes, no markdown fences
-
-# Context
-
-- Repository: $RepoName
-- Branch: $Branch
-- Source: $SourceLabel
-
-## Commit Log
-
-$CommitLog
-
-## Changed Files
-
-$FileList
-
-## Diff Summary
-
-$Stat
-
-## Full Diff
-
-$Diff
-"@
+$PromptDir = Join-Path $ScriptDir "prompts"
+$Prompt = Expand-PromptTemplate -TemplateDir $PromptDir -TemplateName "release-note.md" -Vars @{
+    REPO_NAME     = $RepoName
+    BRANCH        = $Branch
+    SOURCE_LABEL  = $SourceLabel
+    COMMIT_LOG    = $CommitLog
+    FILE_LIST     = $FileList
+    STAT          = $Stat
+    DIFF          = $Diff
+}
 
 # --- Call agent ---
 Write-Host ""

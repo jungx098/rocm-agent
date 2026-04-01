@@ -260,11 +260,13 @@ You can specify the agent in three ways (in order of precedence):
 | `generate-release-note.ps1` | Release note generator — PowerShell implementation |
 | `generate-release-note.sh` | Release note generator — Cross-platform (native bash on macOS/Linux, PowerShell on Windows) |
 | `generate-release-note.cmd` | Release note generator — Windows CMD wrapper |
+| `prompts/` | Shared agent prompt templates (`.md`) plus `render.py`, `render.inc.sh` (bash), and `Expand-PromptTemplate.ps1` (PowerShell) |
 
 ## Platform-Specific Notes
 
 ### macOS/Linux
 - Native bash implementations provide better performance and no PowerShell dependency
+- **Python 3** in `PATH` is required — prompt text is loaded from `prompts/*.md` and filled via `prompts/render.py`
 - Uses `pbcopy` (macOS) or `xclip` (Linux) for clipboard integration
 - Requires `curl` for GitHub API requests (generate-pr-message)
 - Optional: Install `jq` for better JSON parsing in generate-pr-message

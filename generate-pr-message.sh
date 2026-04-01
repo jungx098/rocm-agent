@@ -64,6 +64,9 @@ done
 # NATIVE BASH IMPLEMENTATION (macOS/Linux)
 # ============================================================================
 if [ $USE_NATIVE -eq 1 ]; then
+    # shellcheck source=./prompts/render.inc.sh
+    . "$SCRIPT_DIR/prompts/render.inc.sh"
+
     # --- Validate prerequisites ---
     if ! command -v curl >/dev/null 2>&1; then
         echo "Error: curl is not installed or not in PATH." >&2
@@ -313,67 +316,25 @@ $DIFF"
     fi
 
     # --- Build prompt based on mode ---
+    export _PROMPT_TITLE_RULES="$TITLE_RULES"
+    export _PROMPT_MESSAGE_RULES="$MESSAGE_RULES"
+    export _PROMPT_SQUASH_RULES="$SQUASH_RULES"
+    export _PROMPT_PR_CONTEXT="$PR_CONTEXT"
+    export _PROMPT_TEMPLATE="$TEMPLATE"
+    export _PROMPT_PR_NUM="$PR_NUM"
+
     case "$MODE" in
         title)
-            PROMPT="Generate a PR title for the following pull request.
-
-Rules:
-$TITLE_RULES
-- Output ONLY the title line, nothing else — no explanation, no quotes, no markdown fences
-$PR_CONTEXT"
+            PROMPT=$(render_prompt_template pr-title.md TITLE_RULES PR_CONTEXT)
             ;;
         message)
-            PROMPT="Fill in the PR template below for the following pull request.
-
-Rules:
-$MESSAGE_RULES
-- Output ONLY the filled template, nothing else — no title, no explanation, no quotes, no markdown fences
-$PR_CONTEXT
-
-## Template to Fill
-
-$TEMPLATE"
+            PROMPT=$(render_prompt_template pr-message.md MESSAGE_RULES PR_CONTEXT TEMPLATE)
             ;;
         squash)
-            PROMPT="Generate a squash-merge commit message for this GitHub PR.
-
-Format:
-
-<type>: <short description> (#$PR_NUM)
-
-- bullet 1
-- bullet 2
-
-Rules:
-$SQUASH_RULES
-- Output ONLY the commit message, nothing else — no explanation, no quotes, no markdown fences
-$PR_CONTEXT"
+            PROMPT=$(render_prompt_template pr-squash.md SQUASH_RULES PR_NUM PR_CONTEXT)
             ;;
         all)
-            PROMPT="Generate three outputs for this GitHub PR, separated by the exact delimiters shown below.
-
-===TITLE===
-A single PR title line.
-===MESSAGE===
-A filled-in PR template body.
-===SQUASH===
-A squash-merge commit message.
-
-Rules for TITLE:
-$TITLE_RULES
-
-Rules for MESSAGE:
-$MESSAGE_RULES
-
-Rules for SQUASH (format: <type>: <short description> (#$PR_NUM)\n\n- bullet 1\n- bullet 2):
-$SQUASH_RULES
-
-Output ONLY the three sections with delimiters. No explanation, no quotes, no markdown fences.
-$PR_CONTEXT
-
-## Template to Fill (for MESSAGE section)
-
-$TEMPLATE"
+            PROMPT=$(render_prompt_template pr-all.md TITLE_RULES MESSAGE_RULES SQUASH_RULES PR_NUM PR_CONTEXT TEMPLATE)
             ;;
         *)
             echo "Error: Invalid mode '$MODE'. Use: all, title, message, or squash" >&2

@@ -31,6 +31,9 @@ param(
     [int]$MaxDiffLength = 12000
 )
 
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+. (Join-Path $ScriptDir "prompts\Expand-PromptTemplate.ps1")
+
 # --- Validate agent command ---
 if (-not (Get-Command $Agent -ErrorAction SilentlyContinue)) {
     Write-Error "'$Agent' command not found in PATH."
@@ -276,75 +279,37 @@ if ($jiraId) {
 "@
 }
 
+$PromptDir = Join-Path $ScriptDir "prompts"
 switch ($Mode) {
     "title" {
-        $prompt = @"
-Generate a PR title for the following pull request.
-
-Rules:
-$titleRules
-- Output ONLY the title line, nothing else — no explanation, no quotes, no markdown fences
-$prContext
-"@
+        $prompt = Expand-PromptTemplate -TemplateDir $PromptDir -TemplateName "pr-title.md" -Vars @{
+            TITLE_RULES = $titleRules
+            PR_CONTEXT  = $prContext
+        }
     }
     "message" {
-        $prompt = @"
-Fill in the PR template below for the following pull request.
-
-Rules:
-$messageRules
-- Output ONLY the filled template, nothing else — no title, no explanation, no quotes, no markdown fences
-$prContext
-
-## Template to Fill
-
-$template
-"@
+        $prompt = Expand-PromptTemplate -TemplateDir $PromptDir -TemplateName "pr-message.md" -Vars @{
+            MESSAGE_RULES = $messageRules
+            PR_CONTEXT      = $prContext
+            TEMPLATE        = $template
+        }
     }
     "squash" {
-        $prompt = @"
-Generate a squash-merge commit message for this GitHub PR.
-
-Format:
-
-<type>: <short description> (#$prNum)
-
-- bullet 1
-- bullet 2
-
-Rules:
-$squashRules
-- Output ONLY the commit message, nothing else — no explanation, no quotes, no markdown fences
-$prContext
-"@
+        $prompt = Expand-PromptTemplate -TemplateDir $PromptDir -TemplateName "pr-squash.md" -Vars @{
+            SQUASH_RULES = $squashRules
+            PR_NUM       = "$prNum"
+            PR_CONTEXT   = $prContext
+        }
     }
     "all" {
-        $prompt = @"
-Generate three outputs for this GitHub PR, separated by the exact delimiters shown below.
-
-===TITLE===
-A single PR title line.
-===MESSAGE===
-A filled-in PR template body.
-===SQUASH===
-A squash-merge commit message.
-
-Rules for TITLE:
-$titleRules
-
-Rules for MESSAGE:
-$messageRules
-
-Rules for SQUASH (format: <type>: <short description> (#$prNum)\n\n- bullet 1\n- bullet 2):
-$squashRules
-
-Output ONLY the three sections with delimiters. No explanation, no quotes, no markdown fences.
-$prContext
-
-## Template to Fill (for MESSAGE section)
-
-$template
-"@
+        $prompt = Expand-PromptTemplate -TemplateDir $PromptDir -TemplateName "pr-all.md" -Vars @{
+            TITLE_RULES    = $titleRules
+            MESSAGE_RULES  = $messageRules
+            SQUASH_RULES   = $squashRules
+            PR_NUM         = "$prNum"
+            PR_CONTEXT     = $prContext
+            TEMPLATE       = $template
+        }
     }
 }
 

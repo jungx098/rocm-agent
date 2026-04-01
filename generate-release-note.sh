@@ -69,6 +69,9 @@ done
 # NATIVE BASH IMPLEMENTATION (macOS/Linux)
 # ============================================================================
 if [ $USE_NATIVE -eq 1 ]; then
+    # shellcheck source=./prompts/render.inc.sh
+    . "$SCRIPT_DIR/prompts/render.inc.sh"
+
     # --- Validate prerequisites ---
     if ! command -v git >/dev/null 2>&1; then
         echo "Error: git is not installed or not in PATH." >&2
@@ -167,66 +170,14 @@ if [ $USE_NATIVE -eq 1 ]; then
     fi
 
     # --- Build prompt ---
-    PROMPT=$(cat <<EOF
-Generate release notes from the following git repository changes.
-
-Format the output as markdown with the following structure:
-
-# Release Title (e.g., "v2.0.0 - Major Performance Update")
-
-## Summary
-A brief overview paragraph of the key changes and improvements.
-
-## New Features
-- Feature 1
-- Feature 2
-
-## Bug Fixes
-- Fix 1
-- Fix 2
-
-## Improvements
-- Improvement 1
-- Improvement 2
-
-## Breaking Changes (if any)
-- Breaking change 1
-
-## Technical Details (optional)
-Additional technical information if relevant.
-
-Rules:
-- Include a descriptive release title as H1 (suggest version number if tags are present, or a descriptive name)
-- Be concise and user-friendly
-- Group related changes together
-- Highlight breaking changes prominently
-- Use clear, descriptive bullet points
-- Focus on user-facing changes, not implementation details
-- Output ONLY the release notes in markdown format, nothing else — no explanation, no quotes, no markdown fences
-
-# Context
-
-- Repository: $REPO_NAME
-- Branch: $BRANCH
-- Source: $SOURCE_LABEL
-
-## Commit Log
-
-$COMMIT_LOG
-
-## Changed Files
-
-$FILE_LIST
-
-## Diff Summary
-
-$STAT
-
-## Full Diff
-
-$DIFF
-EOF
-)
+    export _PROMPT_REPO_NAME="$REPO_NAME"
+    export _PROMPT_BRANCH="$BRANCH"
+    export _PROMPT_SOURCE_LABEL="$SOURCE_LABEL"
+    export _PROMPT_COMMIT_LOG="$COMMIT_LOG"
+    export _PROMPT_FILE_LIST="$FILE_LIST"
+    export _PROMPT_STAT="$STAT"
+    export _PROMPT_DIFF="$DIFF"
+    PROMPT=$(render_prompt_template release-note.md REPO_NAME BRANCH SOURCE_LABEL COMMIT_LOG FILE_LIST STAT DIFF)
 
     # --- Call agent ---
     echo "Generating release notes via $AGENT_CMD ..." >&2
