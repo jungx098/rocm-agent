@@ -220,6 +220,50 @@ if ($endIdx -ge 0 -and $endIdx -lt $lines.Count - 1) {
 
 $message = ($lines -join "`n").Trim()
 
+# Rejoin continuation lines and re-wrap bullets at 72 chars,
+# preferring breaks before clause-start words for readability
+$maxBodyLen = 72
+$clauseBreakWords = ' to from for with and or but that which when where by via in on at as using instead without if into after before since while because unless through across between during until rather so nor yet '
+
+$rawLines = $message -split "`n"
+$joined = @()
+foreach ($ln in $rawLines) {
+    if ($joined.Count -gt 0 -and $joined[-1] -and $ln -match '^\s{2}\S') {
+        $trimmed = $ln -replace '^\s+', ''
+        $joined[-1] = "$($joined[-1]) $trimmed"
+    } else {
+        $joined += $ln
+    }
+}
+$rewrapped = @()
+foreach ($ln in $joined) {
+    if ($ln -match '^- ' -and $ln.Length -gt $maxBodyLen) {
+        $rem = $ln
+        while ($rem.Length -gt $maxBodyLen) {
+            $pos = -1
+            for ($i = [Math]::Min($maxBodyLen, $rem.Length) - 1; $i -ge 40; $i--) {
+                if ($rem[$i] -eq [char]' ') {
+                    $nextWord = ($rem.Substring($i + 1) -split ' ', 2)[0].ToLower()
+                    if ($clauseBreakWords.Contains(" $nextWord ")) {
+                        $pos = $i
+                        break
+                    }
+                }
+            }
+            if ($pos -lt 0) {
+                $pos = $rem.LastIndexOf(' ', [Math]::Min($maxBodyLen, $rem.Length) - 1)
+            }
+            if ($pos -le 2) { break }
+            $rewrapped += $rem.Substring(0, $pos)
+            $rem = "  " + $rem.Substring($pos + 1)
+        }
+        $rewrapped += $rem
+    } else {
+        $rewrapped += $ln
+    }
+}
+$message = ($rewrapped -join "`n").Trim()
+
 if (-not $message) {
     Write-Error "Sanitization removed all content — agent returned no valid commit message."
     exit 1

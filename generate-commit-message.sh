@@ -251,6 +251,43 @@ if [ $USE_NATIVE -eq 1 ]; then
         | grep -vi -E '^(let me know|hope this|feel free|this (commit |message )|I hope|if you)')
     MESSAGE=$(echo "$MESSAGE" | sed -e 's/[[:space:]]*$//')
 
+    # Rejoin continuation lines and re-wrap bullets at 72 chars,
+    # preferring breaks before clause-start words for readability
+    MESSAGE=$(printf '%s\n' "$MESSAGE" | awk '
+        BEGIN {
+            maxlen = 72; prev = ""; has = 0
+            clause = " to from for with and or but that which when where by via in on at as using instead without if into after before since while because unless through across between during until rather so nor yet "
+        }
+        /^  [^ ]/ && has && prev != "" {
+            sub(/^  +/, ""); prev = prev " " $0; next
+        }
+        { if (has) rewrap(prev); prev = $0; has = 1 }
+        END { if (has) rewrap(prev) }
+        function rewrap(s,    r, p) {
+            if (length(s) <= maxlen || substr(s, 1, 2) != "- ") { print s; return }
+            r = s
+            while (length(r) > maxlen) {
+                p = nat_brk(r)
+                if (p == 0) {
+                    p = maxlen
+                    while (p > 2 && substr(r, p, 1) != " ") p--
+                }
+                if (p <= 2) break
+                print substr(r, 1, p - 1)
+                r = "  " substr(r, p + 1)
+            }
+            print r
+        }
+        function nat_brk(s,    i, parts) {
+            for (i = maxlen; i >= 40; i--) {
+                if (substr(s, i, 1) == " ") {
+                    split(substr(s, i + 1), parts, " ")
+                    if (index(clause, " " tolower(parts[1]) " ") > 0) return i
+                }
+            }
+            return 0
+        }')
+
     if [ -z "$MESSAGE" ]; then
         echo "Error: Sanitization removed all content — agent returned no valid commit message." >&2
         exit 1
