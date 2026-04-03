@@ -248,7 +248,7 @@ if [ $USE_NATIVE -eq 1 ]; then
 
     MESSAGE=$(echo "$MESSAGE" | sed -e :a -e '/^\s*$/{ $d; N; ba; }' \
         | grep -vi -E '^(let me know|hope this|feel free|this (commit |message )|I hope|if you)')
-    MESSAGE=$(echo "$MESSAGE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+    MESSAGE=$(echo "$MESSAGE" | sed -e 's/[[:space:]]*$//')
 
     if [ -z "$MESSAGE" ]; then
         echo "Error: Sanitization removed all content — agent returned no valid commit message." >&2
