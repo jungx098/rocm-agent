@@ -246,7 +246,8 @@ if [ $USE_NATIVE -eq 1 ]; then
         MESSAGE=$(echo "$MESSAGE" | tail -n +"$FIRST_LINE")
     fi
 
-    MESSAGE=$(echo "$MESSAGE" | sed -e :a -e '/^\s*$/{ $d; N; ba; }' \
+    # BSD sed (macOS) rejects `{ $d; N; ba; }` in one -e; split the block for portability.
+    MESSAGE=$(echo "$MESSAGE" | sed -e :a -e '/^[[:space:]]*$/{' -e '$d' -e 'N' -e 'ba' -e '}' \
         | grep -vi -E '^(let me know|hope this|feel free|this (commit |message )|I hope|if you)')
     MESSAGE=$(echo "$MESSAGE" | sed -e 's/[[:space:]]*$//')
 
