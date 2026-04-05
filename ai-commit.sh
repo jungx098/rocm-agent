@@ -80,7 +80,9 @@ if [ $USE_NATIVE -eq 1 ]; then
 
     GEN_ARGS=(-o "$TMP_FILE")
     [ -n "$AMEND" ] && GEN_ARGS+=("$AMEND")
-    [ -n "$AGENT_CMD" ] && [ "$AGENT_CMD" != "agent" ] && GEN_ARGS+=(-a "$AGENT_CMD")
+    # Always pass -a so the chosen agent wins over $AGENT in the environment
+    # (skipping -a when the command is "agent" used to make copilot stick if AGENT=copilot).
+    GEN_ARGS+=(-a "$AGENT_CMD")
     [ -n "$MAX_DIFF" ] && GEN_ARGS+=(-m "$MAX_DIFF")
 
     if ! "$GEN_SCRIPT" "${GEN_ARGS[@]}" >/dev/null; then
