@@ -17,7 +17,9 @@ def main() -> None:
     for k in keys:
         val = os.environ.get("_PROMPT_" + k, "")
         text = text.replace("{{" + k + "}}", val)
-    sys.stdout.write(text)
+    # Env values from bash may contain surrogate code points (POSIX
+    # surrogateescape for non-UTF-8 bytes). Those are not valid UTF-8.
+    sys.stdout.buffer.write(text.encode("utf-8", errors="replace"))
 
 
 if __name__ == "__main__":
