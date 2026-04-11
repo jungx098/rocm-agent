@@ -339,6 +339,16 @@ try {
     exit 1
 }
 
+# Copilot CLI: drop usage lines mixed into output (same filters as generate-pr-message.sh)
+if ($Agent -like "*copilot*") {
+    $message = ($message -split "`n" | Where-Object {
+        $_ -notmatch '^Total usage est:|^API time spent:|^Total session time:|^Total code changes:|^Breakdown by AI model:|^ claude-|^ gpt-|^●|^  \$|^  └' -and
+        $_ -notmatch '^\s*Changes\s+[+-][0-9]' -and
+        $_ -notmatch '^\s*Requests\s+[0-9]' -and
+        $_ -notmatch '^\s*Tokens\s'
+    }) -join "`n"
+}
+
 # --- Parse and display ---
 function Show-Section($header, $color, $content) {
     Write-Host ""

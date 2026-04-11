@@ -194,6 +194,16 @@ try {
     exit 1
 }
 
+# Copilot CLI: drop usage lines mixed into stdout/stderr (same filters as generate-commit-message.sh)
+if ($Agent -like "*copilot*") {
+    $message = ($message -split "`n" | Where-Object {
+        $_ -notmatch '^Total usage est:|^API time spent:|^Total session time:|^Total code changes:|^Breakdown by AI model:|^ claude-|^ gpt-|^●|^  \$|^  └' -and
+        $_ -notmatch '^\s*Changes\s+[+-][0-9]' -and
+        $_ -notmatch '^\s*Requests\s+[0-9]' -and
+        $_ -notmatch '^\s*Tokens\s'
+    }) -join "`n"
+}
+
 # --- Sanitize AI output (strip preamble, fences, postamble) ---
 $lines = $message -split "`n"
 $lines = $lines | Where-Object { $_ -notmatch '^\s*```' }

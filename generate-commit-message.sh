@@ -223,6 +223,8 @@ if [ $USE_NATIVE -eq 1 ]; then
             /^[[:space:]]*$/ && in_message == 0 { next; }
             # Once we hit content (commit type or already in message), start collecting
             /^(feat|fix|refactor|docs|test|chore|style|perf|ci|build):/ { in_message = 1; }
+            # Copilot CLI trailing usage (diff/stats/tokens) — must not append after the message
+            in_message == 1 && /^Changes[[:space:]]+[+-][0-9]|^Requests[[:space:]]+[0-9]|^Tokens[[:space:]]/ { next; }
             in_message == 1 {
                 if (message != "") message = message "\n";
                 message = message $0;

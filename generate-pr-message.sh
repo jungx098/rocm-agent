@@ -371,6 +371,7 @@ $CO_AUTHOR_LINES"
             BEGIN { in_message = 0; message = ""; }
             /^Total usage est:|^API time spent:|^Total session time:|^Total code changes:|^Breakdown by AI model:|^ claude-|^ gpt-|^●|^  \$|^  └/ { next; }
             /^[[:space:]]*$/ && in_message == 0 { next; }
+            in_message == 1 && /^Changes[[:space:]]+[+-][0-9]|^Requests[[:space:]]+[0-9]|^Tokens[[:space:]]/ { next; }
             /===TITLE===|===MESSAGE===|===SQUASH===|^[a-z]+:/ || in_message == 1 { 
                 in_message = 1;
                 if (message != "") message = message "\n";

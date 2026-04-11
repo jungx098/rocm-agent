@@ -210,6 +210,10 @@ try {
             if ($line -match '^Total usage est:|^API time spent:|^Total session time:|^Total code changes:|^Breakdown by AI model:|^ claude-|^ gpt-|^●|^  \$|^  └') {
                 continue
             }
+            # Copilot CLI trailing usage (diff/stats/tokens)
+            if ($InMessage -and $line -match '^\s*Changes\s+[+-][0-9]|^\s*Requests\s+[0-9]|^\s*Tokens\s') {
+                continue
+            }
             # Skip empty lines before message starts
             if (-not $InMessage -and $line -match '^\s*$') {
                 continue
