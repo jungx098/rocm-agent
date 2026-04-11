@@ -168,6 +168,7 @@ if [ $USE_NATIVE -eq 1 ]; then
     echo "Fetching commits ..." >&2
     COMMIT_LIST=""
     COMMIT_COUNT=0
+    ALL_AUTHORS=""
     if command -v jq >/dev/null 2>&1; then
         for page in $(seq 1 3); do
             PAGE_JSON=$(curl -s "${GH_HEADERS[@]}" "$API_BASE/commits?per_page=100&page=$page" 2>/dev/null) || break
@@ -176,6 +177,8 @@ if [ $USE_NATIVE -eq 1 ]; then
             PAGE_LIST=$(echo "$PAGE_JSON" | jq -r '.[] | "\(.sha[:8]) \(.commit.message | split("\n")[0])"' 2>/dev/null)
             [ -n "$COMMIT_LIST" ] && COMMIT_LIST="$COMMIT_LIST"$'\n'
             COMMIT_LIST="$COMMIT_LIST$PAGE_LIST"
+            PAGE_AUTHORS=$(echo "$PAGE_JSON" | jq -r '.[] | select(.commit.author.name != null and .commit.author.email != null) | "\(.commit.author.name) <\(.commit.author.email)>"' 2>/dev/null)
+            [ -n "$PAGE_AUTHORS" ] && ALL_AUTHORS="$ALL_AUTHORS"$'\n'"$PAGE_AUTHORS"
             COMMIT_COUNT=$((COMMIT_COUNT + PAGE_COUNT))
             [ "$PAGE_COUNT" -lt 100 ] && break
         done
@@ -186,6 +189,10 @@ if [ $USE_NATIVE -eq 1 ]; then
         fi
     fi
     [ -z "$COMMIT_LIST" ] && COMMIT_LIST="(could not fetch commits)"
+    CO_AUTHOR_LINES=""
+    if [ -n "$ALL_AUTHORS" ]; then
+        CO_AUTHOR_LINES=$(printf '%s' "$ALL_AUTHORS" | grep -v '^$' | sort -u | sed 's/^/Co-authored-by: /')
+    fi
 
     # --- Fetch diff ---
     echo "Fetching diff ..." >&2
@@ -313,6 +320,12 @@ $DIFF"
 - Include the PR number (#$PR_NUM) at the end of the subject line
 - Body: 1-3 short bullet points summarizing the key changes, separated from subject by a blank line
 - Wrap body lines at 72 characters; break mid-sentence if needed to stay within the limit"
+    fi
+
+    if [ -n "$CO_AUTHOR_LINES" ]; then
+        SQUASH_RULES="$SQUASH_RULES
+- After the bullet points, add a blank line then include these Co-authored-by trailers verbatim, one per line:
+$CO_AUTHOR_LINES"
     fi
 
     # --- Build prompt based on mode ---

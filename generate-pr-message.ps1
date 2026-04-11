@@ -103,6 +103,7 @@ if ($fileListCount -gt 0 -and $changedFiles -gt $fileListCount) {
 Write-Host "Fetching commits ..." -ForegroundColor Cyan
 $commitList = ""
 $commitCount = 0
+$coAuthorSet = @{}
 try {
     for ($page = 1; $page -le 3; $page++) {
         $pageCommits = Invoke-RestMethod -Uri "$apiBase/commits?per_page=100&page=$page" -Headers $ghHeaders -Method Get
@@ -112,6 +113,13 @@ try {
         }) -join "`n"
         if ($commitList) { $commitList += "`n" }
         $commitList += $pageList
+        $pageCommits | ForEach-Object {
+            $aName  = $_.commit.author.name
+            $aEmail = $_.commit.author.email
+            if ($aName -and $aEmail) {
+                $coAuthorSet["$aName <$aEmail>"] = $true
+            }
+        }
         $commitCount += $pageCommits.Count
         if ($pageCommits.Count -lt 100) { break }
     }
@@ -119,6 +127,9 @@ try {
     $commitList = "(could not fetch commits)"
 }
 if (-not $commitList) { $commitList = "(could not fetch commits)" }
+$coAuthorLines = if ($coAuthorSet.Count -gt 0) {
+    ($coAuthorSet.Keys | Sort-Object | ForEach-Object { "Co-authored-by: $_" }) -join "`n"
+} else { "" }
 
 # --- Fetch diff ---
 Write-Host "Fetching diff ..." -ForegroundColor Cyan
@@ -277,6 +288,10 @@ if ($jiraId) {
 - Body: 1-3 short bullet points summarizing the key changes, separated from subject by a blank line
 - Wrap body lines at 72 characters; break mid-sentence if needed to stay within the limit
 "@
+}
+
+if ($coAuthorLines) {
+    $squashRules += "`n- After the bullet points, add a blank line then include these Co-authored-by trailers verbatim, one per line:`n$coAuthorLines"
 }
 
 $PromptDir = Join-Path $ScriptDir "prompts"
