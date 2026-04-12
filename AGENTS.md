@@ -36,6 +36,19 @@ Agent selection priority: `-a` flag > `$AGENT` env var > default `"agent"`.
 
 Copilot CLI mixes usage stats and tool-execution noise into its output. All scripts include an awk/regex filter to strip these lines (usage stats, token counts, spinner characters, etc.) and extract only the AI-generated content. The commit-message scripts additionally sanitize the result: remove code fences, locate the first Conventional Commits line, strip AI pleasantries, and rewrap body lines at 72 characters using clause-boundary detection.
 
+## Project skills
+
+Domain playbooks live under **`.claude/skills/<name>/SKILL.md`**. That matches Claude Code’s layout; **here it is the single source of truth.** Cursor, GitHub Copilot CLI, and other assistants should **read the relevant `SKILL.md` when the task fits that domain**, then apply it for substantive edits (do not treat those paths as Claude-only).
+
+| Skill | Use when |
+| --- | --- |
+| `coding-standards` | Naming, readability, immutability, and general code-quality review |
+| `security-review` | Authentication, user input, secrets, API endpoints, payment or other sensitive features |
+| `github-ops` | Issues, PRs, CI, releases, or other GitHub/`gh` operational work beyond plain git |
+| `git-workflow` | Branching, commits, merge vs rebase, conflicts, or team git workflow |
+
+Add new skills as new directories under `.claude/skills/` and link them here.
+
 ## Conventions
 
 ### Text files
