@@ -1,0 +1,10 @@
+---
+description: Canonical instructions — read AGENTS.md at repo root
+alwaysApply: true
+---
+
+# `AGENTS.md`
+
+The **source of truth** for this repository is **`AGENTS.md`** at the repo root: tri-platform **`.sh` / `.ps1` / `.cmd`** parity, **prompt templates**, **agent invocation**, **output cleaning**, **Conventional Commits**, and **pre-commit** behavior.
+
+Before substantive edits, read or skim `AGENTS.md`. Apply it when changing tools or prompts; do not re-copy long sections into chat.
