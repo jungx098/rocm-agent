@@ -1,0 +1,14 @@
+# Text: detect as text, check out with LF (POSIX-friendly).
+* text=auto eol=lf
+
+# Common binary types — do not line-end normalize or merge as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.woff binary
+*.woff2 binary

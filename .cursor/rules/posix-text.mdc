@@ -1,0 +1,21 @@
+---
+description: POSIX-style text files — LF endings, newline at EOF, UTF-8
+alwaysApply: true
+---
+
+# Text file format (POSIX-friendly)
+
+Git is configured to check out text as **LF** via the repo root **`.gitattributes`** (`text=auto eol=lf`).
+
+When creating or editing **plain text** files in this repository (source, scripts, markdown, config, etc.):
+
+- **Line endings**: Use **LF** (`\n`) only. Do not use CRLF (`\r\n`).
+- **End of file**: End the file with **exactly one newline** after the last line of content (POSIX “text file” convention). Do not leave the last line without a trailing newline; do not add multiple blank lines at EOF unless the format requires it.
+- **Encoding**: Prefer **UTF-8** without a **BOM**, unless a format or tool explicitly requires otherwise.
+
+When fixing or reviewing edits:
+
+- Normalize accidental CRLF to LF in touched files.
+- If a file previously had no final newline, add one when saving substantive changes.
+
+Shell scripts (`.sh`) and repo automation should remain runnable on Unix-like systems; keep shebang lines Unix-style and line endings LF.

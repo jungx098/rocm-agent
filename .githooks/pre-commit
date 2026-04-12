@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Fast checks on staged files. Enable once per clone: git config core.hooksPath .githooks
+set -euo pipefail
+
+failed=0
+while IFS= read -r -d '' file; do
+  [[ -f "$file" ]] || continue
+  case "$file" in
+    *.sh)
+      if ! bash -n "$file"; then
+        echo "pre-commit: bash -n failed: $file" >&2
+        failed=1
+      fi
+      ;;
+    *.py)
+      if ! python3 -c "import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text(encoding='utf-8'))" "$file"; then
+        echo "pre-commit: Python syntax check failed: $file" >&2
+        failed=1
+      fi
+      ;;
+  esac
+done < <(git diff --cached --name-only -z --diff-filter=ACM)
+
+exit "$failed"

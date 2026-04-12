@@ -2,6 +2,16 @@
 
 AI-powered git workflow tools. Generate PR messages, commit messages, or release notes from git changes, all driven by an AI agent.
 
+## Git hooks (optional)
+
+This repo includes a [pre-commit](https://git-scm.com/docs/githooks#_pre_commit) hook under `.githooks/` that runs quick checks on staged `.sh` and `.py` files (shell syntax via `bash -n`, Python via `ast.parse`). Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+To disable in this repository only: `git config --unset core.hooksPath`.
+
 ## Prerequisites
 
 ### For macOS/Linux:
