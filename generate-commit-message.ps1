@@ -186,7 +186,11 @@ $prompt = Expand-PromptTemplate -TemplateDir $PromptDir -TemplateName "commit-me
 Write-Host "Generating commit message via $Agent ..." -ForegroundColor Cyan
 
 try {
-    $raw = $prompt | & $Agent -p --trust
+    if ($Agent -like "*copilot*") {
+        $raw = & $Agent -p $prompt
+    } else {
+        $raw = $prompt | & $Agent -p --trust
+    }
     $message = if ($raw -is [array]) { $raw -join "`n" } else { "$raw" }
     $message = $message -replace "`r`n", "`n" -replace "`r", "`n"
 } catch {
