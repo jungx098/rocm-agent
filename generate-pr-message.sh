@@ -312,8 +312,8 @@ $DIFF"
 
         MESSAGE_RULES="- Be brief and concise — use short sentences, no filler, no repetition
 - Each section should be 1-3 sentences or a short bullet list at most
-- For the JIRA ID section, output ONLY the JIRA ticket ID if one exists in the PR title or description — no prefix like Resolves, Fixes, Closes, etc.
-- Ignore any example/placeholder JIRA IDs in the template HTML comments (e.g., SWDEV-12345 is NOT a real ID)"
+- For the JIRA ID section: if a real JIRA ticket ID (e.g. SWDEV-12345) exists in the PR title or description, output it alone (no prefix); otherwise fill the section with exactly: N/A
+- Ignore any JIRA IDs that appear only inside HTML comments in the template — those are examples, not real IDs"
 
         SQUASH_RULES="- type is one of: feat, fix, refactor, docs, test, chore, style, perf, ci, build
 - Subject line: capitalize first letter, imperative mood, no period, max 72 characters
@@ -412,6 +412,9 @@ $CO_AUTHOR_LINES"
         TITLE_CONTENT=$(echo "$MESSAGE" | sed -n '/===TITLE===/,/===MESSAGE===/p' | sed '1d;$d' | sed '/^$/d')
         MSG_CONTENT=$(echo "$MESSAGE" | sed -n '/===MESSAGE===/,/===SQUASH===/p' | sed '1d;$d')
         SQUASH_CONTENT=$(echo "$MESSAGE" | sed -n '/===SQUASH===/,$p' | sed '1d')
+
+        # Fill empty JIRA ID section with N/A
+        MSG_CONTENT=$(printf '%s' "$MSG_CONTENT" | perl -0pe 's/(## JIRA ID\n)(\n|(?=##))/\1N\/A\n/g')
 
         [ -n "$TITLE_CONTENT" ] && show_section "PR Title" "$TITLE_CONTENT"
         [ -n "$MSG_CONTENT" ] && show_section "PR Message" "$MSG_CONTENT"

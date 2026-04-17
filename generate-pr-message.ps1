@@ -277,8 +277,8 @@ if ($jiraId) {
     $messageRules = @"
 - Be brief and concise — use short sentences, no filler, no repetition
 - Each section should be 1-3 sentences or a short bullet list at most
-- For the JIRA ID section, output ONLY the JIRA ticket ID if one exists in the PR title or description — no prefix like Resolves, Fixes, Closes, etc.
-- Ignore any example/placeholder JIRA IDs in the template HTML comments (e.g., SWDEV-12345 is NOT a real ID)
+- For the JIRA ID section: if a real JIRA ticket ID (e.g. SWDEV-12345) exists in the PR title or description, output it alone (no prefix); otherwise fill the section with exactly: N/A
+- Ignore any JIRA IDs that appear only inside HTML comments in the template — those are examples, not real IDs
 "@
 
     $squashRules = @"
@@ -370,6 +370,9 @@ if ($Mode -eq "all") {
         $titleContent  = $Matches[1].Trim()
         $msgContent    = $Matches[2].Trim()
         $squashContent = $Matches[3].Trim()
+
+        # Fill empty JIRA ID section with N/A
+        $msgContent = [regex]::Replace($msgContent, '(?m)(## JIRA ID\r?\n)(\r?\n|(?=##))', { param($m) $m.Groups[1].Value + "N/A`n" })
     } else {
         Write-Warning "Could not parse delimited output; showing raw response."
         $titleContent = $message
