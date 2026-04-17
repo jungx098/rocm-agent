@@ -25,9 +25,10 @@ The bash scripts source `render.inc.sh` and call `render_prompt_template <templa
 
 ### Agent invocation
 
-Scripts support two agent command formats, auto-detected by name:
+Scripts support three agent command formats, auto-detected by name:
 
 - **Copilot CLI** (`*copilot*`): `"$AGENT_CMD" -p "$PROMPT"` — prompt passed as argument.
+- **Claude Code** (`*claude*`): `echo "$PROMPT" | "$AGENT_CMD" -p` — prompt piped via stdin; `-p` already skips the workspace trust dialog.
 - **Other agents** (default `agent`): `echo "$PROMPT" | "$AGENT_CMD" -p --trust` — prompt piped via stdin.
 
 Agent selection priority: `-a` flag > `$AGENT` env var > default `"agent"`.

@@ -227,6 +227,9 @@ try {
                 $Message += $line
             }
         }
+    } elseif ($Agent -like "*claude*") {
+        $Message = ($Prompt | & $Agent -p 2>&1) -join "`n"
+        if ($LASTEXITCODE -ne 0) { throw "Agent call failed." }
     } else {
         $Message = (& $Agent -p --trust $Prompt 2>&1) -join "`n"
         if ($LASTEXITCODE -ne 0) { throw "Agent call failed." }

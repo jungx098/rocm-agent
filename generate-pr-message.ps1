@@ -332,7 +332,11 @@ switch ($Mode) {
 Write-Host "Generating via $Agent (mode: $Mode) ..." -ForegroundColor Cyan
 
 try {
-    $raw = $prompt | & $Agent -p --trust
+    if ($Agent -like "*claude*") {
+        $raw = $prompt | & $Agent -p
+    } else {
+        $raw = $prompt | & $Agent -p --trust
+    }
     $message = if ($raw -is [array]) { $raw -join "`n" } else { "$raw" }
 } catch {
     Write-Error "Agent call failed: $_"

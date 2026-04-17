@@ -18,13 +18,13 @@ To disable in this repository only: `git config --unset core.hooksPath`.
 - **Bash** (native shell scripts with automatic platform detection)
 - **curl** (for GitHub API requests in generate-pr-message)
 - **git** (required for all tools)
-- **AI agent** such as `copilot`, `agent`, or `agent.cmd` in PATH (or specify a different agent with `-a`/`-Agent`)
+- **AI agent** such as `claude`, `copilot`, `agent`, or `agent.cmd` in PATH (or specify a different agent with `-a`/`-Agent`)
 - **jq** (optional) — improves JSON parsing in generate-pr-message; falls back to grep/sed if unavailable
 - **GITHUB_TOKEN** (optional) — required for private repos or to avoid GitHub API rate limits
 
 ### For Windows:
 - **PowerShell** (5.1+ or pwsh)
-- **agent.cmd** in PATH (or specify a different agent with `-a`/`-Agent`)
+- **claude**, **agent.cmd**, or another AI agent CLI in PATH (or specify a different agent with `-a`/`-Agent`)
 - **GITHUB_TOKEN** (optional) — required for private repos or to avoid GitHub API rate limits
 
 **Note:** The `.sh` scripts automatically detect your platform and use native bash on macOS/Linux or PowerShell on Windows (via Cygwin/MSYS).
@@ -46,14 +46,15 @@ ai-commit.cmd [--amend] [-a AGENT] [-m MAX_DIFF_LENGTH]
 ```powershell
 .\ai-commit.ps1
 .\ai-commit.ps1 -Amend
-.\ai-commit.ps1 -Agent "cursor-agent"
+.\ai-commit.ps1 -Agent claude
 ```
 
 ```bash
 ./ai-commit.sh
 ./ai-commit.sh --amend
+./ai-commit.sh -a claude
 ./ai-commit.sh -a copilot
-AGENT=copilot ./ai-commit.sh
+AGENT=claude ./ai-commit.sh
 ```
 
 ### generate-commit-message
@@ -87,8 +88,9 @@ generate-commit-message.cmd [COMMIT_HASH] [--amend] [-o OUTPUT_FILE] [-a AGENT] 
 ./generate-commit-message.sh
 ./generate-commit-message.sh abc1234 -o commit-msg.txt
 ./generate-commit-message.sh --amend
+./generate-commit-message.sh -a claude
 ./generate-commit-message.sh -a copilot
-AGENT=copilot ./generate-commit-message.sh
+AGENT=claude ./generate-commit-message.sh
 ```
 
 ### generate-pr-message
@@ -120,8 +122,9 @@ generate-pr-message.cmd <PR_URL> [-t MODE] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_D
 ./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -t title
 ./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -t squash
 ./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -o pr-message.md
+./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -a claude
 ./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801 -a copilot
-AGENT=copilot ./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801
+AGENT=claude ./generate-pr-message.sh https://github.com/ROCm/rocm-systems/pull/1801
 ```
 
 ### generate-release-note
@@ -150,7 +153,7 @@ generate-release-note.cmd [HASH1] [HASH2] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DI
 .\generate-release-note.ps1 v1.0.0 v2.0.0 -OutputFile release.md
 
 # Use a specific agent
-.\generate-release-note.ps1 v1.0.0 v2.0.0 -Agent copilot
+.\generate-release-note.ps1 v1.0.0 v2.0.0 -Agent claude
 ```
 
 ```bash
@@ -158,8 +161,9 @@ generate-release-note.cmd [HASH1] [HASH2] [-o OUTPUT_FILE] [-a AGENT] [-m MAX_DI
 ./generate-release-note.sh abc1234
 ./generate-release-note.sh v1.0.0 v2.0.0
 ./generate-release-note.sh v1.0.0 v2.0.0 -o release.md
+./generate-release-note.sh v1.0.0 v2.0.0 -a claude
 ./generate-release-note.sh v1.0.0 v2.0.0 -a copilot
-AGENT=copilot ./generate-release-note.sh v1.0.0 v2.0.0
+AGENT=claude ./generate-release-note.sh v1.0.0 v2.0.0
 ```
 
 ## How It Works
@@ -179,7 +183,7 @@ AGENT=copilot ./generate-release-note.sh v1.0.0 v2.0.0
    - **commit** — `git diff HASH~1 HASH` for a specific commit
    - **amend** — `git diff --cached HEAD~1` (HEAD changes + staged changes combined)
 2. Gathers branch name, file list, diff stats, and recent commit log for style context.
-3. Builds a prompt and sends it to the AI agent (supports both `copilot` and `agent` command formats).
+3. Builds a prompt and sends it to the AI agent (supports `claude`, `copilot`, and `agent` command formats).
 4. Cleans copilot output (removes usage stats and tool execution details).
 5. Outputs the message following Conventional Commits format (50-char subject, 72-char body wrap).
 6. Copies to clipboard via `pbcopy` (macOS) or `xclip` (Linux).
@@ -231,26 +235,30 @@ AGENT=copilot ./generate-release-note.sh v1.0.0 v2.0.0
 
 ## Supported AI Agents
 
-The scripts work with multiple AI agent formats:
+The scripts auto-detect three agent formats by command name:
 
-- **copilot** — GitHub Copilot CLI (uses `-p` flag for prompts, auto-cleans output)
-- **agent** — Cursor Agent CLI (uses `-p` flag for headless/print mode)
-- Custom agents — specify with `-a` / `-Agent` flag or `AGENT` environment variable
+| Agent | Detection | Invocation | Notes |
+|-------|-----------|------------|-------|
+| **Claude Code** | `*claude*` | `echo "$PROMPT" \| claude -p` | Prompt piped via stdin; `-p` skips workspace trust |
+| **Copilot CLI** | `*copilot*` | `copilot -p "$PROMPT"` | Prompt passed as argument; output auto-cleaned |
+| **Other** (default) | everything else | `echo "$PROMPT" \| agent -p --trust` | Default `agent` command with `--trust` flag |
 
 ### Setting the Agent
 
 You can specify the agent in three ways (in order of precedence):
 
 1. **Command-line flag** (highest priority):
-   ```bash
-   ./generate-commit-message.sh -a copilot
-   ```
+
+```bash
+./generate-commit-message.sh -a claude
+```
 
 2. **Environment variable**:
-   ```bash
-   AGENT=copilot ./generate-commit-message.sh
-   export AGENT=copilot  # Set for all subsequent commands
-   ```
+
+```bash
+AGENT=claude ./generate-commit-message.sh
+export AGENT=claude  # Set for all subsequent commands
+```
 
 3. **Default** (lowest priority): Uses `agent` if nothing is specified
 

@@ -384,6 +384,11 @@ $CO_AUTHOR_LINES"
             }
             END { print message; }
         ')
+    elif [[ "$AGENT_CMD" == *"claude"* ]]; then
+        if ! MESSAGE=$(echo "$PROMPT" | "$AGENT_CMD" -p); then
+            echo "Error: Agent call failed." >&2
+            exit 1
+        fi
     else
         if ! MESSAGE=$(echo "$PROMPT" | "$AGENT_CMD" -p --trust); then
             echo "Error: Agent call failed." >&2

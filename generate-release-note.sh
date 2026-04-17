@@ -207,6 +207,11 @@ if [ $USE_NATIVE -eq 1 ]; then
             }
             END { print message; }
         ')
+    elif [[ "$AGENT_CMD" == *"claude"* ]]; then
+        if ! MESSAGE=$(echo "$PROMPT" | "$AGENT_CMD" -p); then
+            echo "Error: Agent call failed." >&2
+            exit 1
+        fi
     else
         # Default format for agent.cmd and similar
         if ! MESSAGE=$(echo "$PROMPT" | "$AGENT_CMD" -p --trust); then

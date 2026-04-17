@@ -188,6 +188,8 @@ Write-Host "Generating commit message via $Agent ..." -ForegroundColor Cyan
 try {
     if ($Agent -like "*copilot*") {
         $raw = & $Agent -p $prompt
+    } elseif ($Agent -like "*claude*") {
+        $raw = $prompt | & $Agent -p
     } else {
         $raw = $prompt | & $Agent -p --trust
     }
