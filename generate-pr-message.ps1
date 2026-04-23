@@ -256,6 +256,7 @@ if ($jiraId) {
     $messageRules = @"
 - Be brief and concise — use short sentences, no filler, no repetition
 - Each section should be 1-3 sentences or a short bullet list at most
+- Re-count every number you write (file counts, function counts, endpoint counts, etc.) by checking the diff, file list, and commit data — never copy a number from the original description without verifying it
 - For the JIRA ID section, output exactly: $jiraId
 "@
 
@@ -277,6 +278,7 @@ if ($jiraId) {
     $messageRules = @"
 - Be brief and concise — use short sentences, no filler, no repetition
 - Each section should be 1-3 sentences or a short bullet list at most
+- Re-count every number you write (file counts, function counts, endpoint counts, etc.) by checking the diff, file list, and commit data — never copy a number from the original description without verifying it
 - For the JIRA ID section: if a real JIRA ticket ID (e.g. SWDEV-12345) exists in the PR title or description, output it alone (no prefix); otherwise fill the section with exactly: N/A
 - Ignore any JIRA IDs that appear only inside HTML comments in the template — those are examples, not real IDs
 "@
