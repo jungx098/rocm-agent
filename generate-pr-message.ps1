@@ -67,10 +67,35 @@ if ($token) {
 
 $apiBase = "https://api.github.com/repos/$owner/$repo/pulls/$prNum"
 
+$pr = $null
+$fetchError = $null
 try {
     $pr = Invoke-RestMethod -Uri $apiBase -Headers $ghHeaders -Method Get
 } catch {
-    Write-Error "Failed to fetch PR: $_"
+    $fetchError = $_
+}
+
+# On failure, try other gh accounts (GitHub returns 404 for private repos with insufficient auth)
+if (-not $pr -and -not $env:GITHUB_TOKEN -and (Get-Command "gh" -ErrorAction SilentlyContinue)) {
+    $statusLines = (gh auth status 2>&1) -join "`n"
+    $acctMatches = [regex]::Matches($statusLines, 'Logged in to github\.com account (\S+)')
+    $triedToken = $token
+    foreach ($m in $acctMatches) {
+        $acct = $m.Groups[1].Value
+        $acctToken = gh auth token --user $acct 2>$null
+        if (-not $acctToken -or $acctToken -eq $triedToken) { continue }
+        Write-Host "  Retrying with gh account: $acct ..." -ForegroundColor Yellow
+        $ghHeaders["Authorization"] = "Bearer $acctToken"
+        try {
+            $pr = Invoke-RestMethod -Uri $apiBase -Headers $ghHeaders -Method Get
+            Write-Host "  Authenticated via gh account: $acct" -ForegroundColor Cyan
+            break
+        } catch {}
+    }
+}
+
+if (-not $pr) {
+    Write-Error "Failed to fetch PR: $fetchError"
     exit 1
 }
 

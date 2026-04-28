@@ -103,8 +103,32 @@ if [ $USE_NATIVE -eq 1 ]; then
     API_BASE="https://api.github.com/repos/$OWNER/$REPO/pulls/$PR_NUM"
 
     # --- Fetch PR metadata ---
-    if ! PR_JSON=$(curl -s "${GH_HEADERS[@]}" "$API_BASE"); then
-        echo "Error: Failed to fetch PR metadata" >&2
+    _pr_tmp=$(mktemp)
+    _pr_http=$(curl -s -o "$_pr_tmp" -w '%{http_code}' "${GH_HEADERS[@]}" "$API_BASE")
+    PR_JSON=$(<"$_pr_tmp")
+
+    # On failure, try other gh accounts (GitHub returns 404 for private repos with insufficient auth)
+    if [ "$_pr_http" != "200" ] && [ -z "${GITHUB_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then
+        _tried="$GH_TOKEN"
+        while IFS= read -r _acct; do
+            [ -z "$_acct" ] && continue
+            _tok=$(gh auth token --user "$_acct" 2>/dev/null) || continue
+            [ "$_tok" = "$_tried" ] && continue
+            echo "  Retrying with gh account: $_acct ..." >&2
+            _headers=(-H "Accept: application/vnd.github.v3+json" -H "User-Agent: PR-Message-Generator" -H "Authorization: Bearer $_tok")
+            _pr_http=$(curl -s -o "$_pr_tmp" -w '%{http_code}' "${_headers[@]}" "$API_BASE")
+            if [ "$_pr_http" = "200" ]; then
+                PR_JSON=$(<"$_pr_tmp")
+                echo "  Authenticated via gh account: $_acct" >&2
+                GH_HEADERS=("${_headers[@]}")
+                break
+            fi
+        done < <(gh auth status 2>&1 | grep 'Logged in to github\.com account' | sed 's/.*account \([^ ]*\).*/\1/')
+    fi
+    rm -f "$_pr_tmp"
+
+    if [ "$_pr_http" != "200" ]; then
+        echo "Error: Failed to fetch PR (HTTP $_pr_http)" >&2
         exit 1
     fi
 
