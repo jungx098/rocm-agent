@@ -244,18 +244,25 @@ if [ $USE_NATIVE -eq 1 ]; then
         fi
     fi
 
+    # --- Check for empty agent output before sanitization ---
+    if [ -z "${MESSAGE//[[:space:]]/}" ]; then
+        echo "Error: Agent '$AGENT_CMD' returned empty output. Check that the agent is authenticated and reachable (try: echo test | $AGENT_CMD -p)." >&2
+        exit 1
+    fi
+
     # --- Sanitize AI output (strip preamble, fences, postamble) ---
-    MESSAGE=$(echo "$MESSAGE" | grep -v '^\s*```')
+    # `|| true` keeps grep's exit-1-on-no-match from tripping pipefail.
+    MESSAGE=$(echo "$MESSAGE" | { grep -v '^\s*```' || true; })
 
     COMMIT_TYPE_RE='^(feat|fix|refactor|docs|test|chore|style|perf|ci|build)(\(.+\))?!?:'
-    FIRST_LINE=$(echo "$MESSAGE" | grep -n -E "$COMMIT_TYPE_RE" | head -1 | cut -d: -f1)
+    FIRST_LINE=$(echo "$MESSAGE" | grep -n -E "$COMMIT_TYPE_RE" | head -1 | cut -d: -f1 || true)
     if [ -n "$FIRST_LINE" ]; then
         MESSAGE=$(echo "$MESSAGE" | tail -n +"$FIRST_LINE")
     fi
 
     # BSD sed (macOS) rejects `{ $d; N; ba; }` in one -e; split the block for portability.
     MESSAGE=$(echo "$MESSAGE" | sed -e :a -e '/^[[:space:]]*$/{' -e '$d' -e 'N' -e 'ba' -e '}' \
-        | grep -vi -E '^(let me know|hope this|feel free|this (commit |message )|I hope|if you)')
+        | { grep -vi -E '^(let me know|hope this|feel free|this (commit |message )|I hope|if you)' || true; })
     MESSAGE=$(echo "$MESSAGE" | sed -e 's/[[:space:]]*$//')
 
     # Rejoin continuation lines and re-wrap bullets at 72 chars,
