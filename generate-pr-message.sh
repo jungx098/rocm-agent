@@ -201,7 +201,9 @@ if [ $USE_NATIVE -eq 1 ]; then
             PAGE_LIST=$(echo "$PAGE_JSON" | jq -r '.[] | "\(.sha[:8]) \(.commit.message | split("\n")[0])"' 2>/dev/null)
             [ -n "$COMMIT_LIST" ] && COMMIT_LIST="$COMMIT_LIST"$'\n'
             COMMIT_LIST="$COMMIT_LIST$PAGE_LIST"
-            PAGE_AUTHORS=$(echo "$PAGE_JSON" | jq -r '.[] | select(.commit.author.name != null and .commit.author.email != null) | "\(.commit.author.name) <\(.commit.author.email)>"' 2>/dev/null)
+            # Exclude commits attributed (via linked GitHub login) to the PR
+            # author — they're the main author, not a co-author.
+            PAGE_AUTHORS=$(echo "$PAGE_JSON" | jq -r --arg pr_login "$AUTHOR" '.[] | select(.commit.author.name != null and .commit.author.email != null) | select((.author.login // "") != $pr_login) | "\(.commit.author.name) <\(.commit.author.email)>"' 2>/dev/null)
             [ -n "$PAGE_AUTHORS" ] && ALL_AUTHORS="$ALL_AUTHORS"$'\n'"$PAGE_AUTHORS"
             COMMIT_COUNT=$((COMMIT_COUNT + PAGE_COUNT))
             [ "$PAGE_COUNT" -lt 100 ] && break
@@ -303,17 +305,45 @@ ${DATA_NOTE}
 
 $DIFF"
 
-    # --- Extract JIRA ID from title or body (ignore HTML comment examples) ---
-    JIRA_ID=""
+    # --- Extract JIRA IDs from title or body (ignore HTML comment examples) ---
+    # Collects all unique JIRA IDs in document order (title first, then body).
+    # The first ID is used as the title/squash prefix; the full list populates
+    # the ## JIRA ID section in the message body.
     BODY_NO_COMMENTS=$(echo "$BODY" | perl -0pe 's/<!--.*?-->//gs' 2>/dev/null || echo "$BODY" | sed 's/<!--[^>]*-->//g')
-    if [[ "$TITLE" =~ ([A-Z][A-Z0-9]+-[0-9]+) ]]; then
-        JIRA_ID="${BASH_REMATCH[1]}"
-    elif [[ "$BODY_NO_COMMENTS" =~ ([A-Z][A-Z0-9]+-[0-9]+) ]]; then
-        JIRA_ID="${BASH_REMATCH[1]}"
+    JIRA_IDS=""
+    _collect_jira_ids() {
+        local input="$1"
+        local id
+        while [[ "$input" =~ ([A-Z][A-Z0-9]+-[0-9]+) ]]; do
+            id="${BASH_REMATCH[1]}"
+            case $'\n'"$JIRA_IDS"$'\n' in
+                *$'\n'"$id"$'\n'*) ;;
+                *)
+                    if [ -n "$JIRA_IDS" ]; then
+                        JIRA_IDS="$JIRA_IDS"$'\n'"$id"
+                    else
+                        JIRA_IDS="$id"
+                    fi
+                    ;;
+            esac
+            input="${input#*"$id"}"
+        done
+    }
+    _collect_jira_ids "$TITLE"
+    _collect_jira_ids "$BODY_NO_COMMENTS"
+    JIRA_ID="${JIRA_IDS%%$'\n'*}"
+    # Markdown bullet form for the ## JIRA ID section
+    JIRA_IDS_BULLETS=""
+    if [ -n "$JIRA_IDS" ]; then
+        JIRA_IDS_BULLETS=$(printf '%s' "$JIRA_IDS" | sed 's/^/- /')
     fi
 
     if [ -n "$JIRA_ID" ]; then
-        echo "Detected JIRA ID: $JIRA_ID" >&2
+        if [ "$JIRA_ID" = "$JIRA_IDS" ]; then
+            echo "Detected JIRA ID: $JIRA_ID" >&2
+        else
+            echo "Detected JIRA IDs: $(printf '%s' "$JIRA_IDS" | tr '\n' ',' | sed 's/,$//;s/,/, /g')" >&2
+        fi
 
         TITLE_RULES="- Use the JIRA ID as the title prefix instead of a type prefix
 - Format: $JIRA_ID: <short description>
@@ -321,12 +351,15 @@ $DIFF"
 
         MESSAGE_RULES="- Be brief and concise — use short sentences, no filler, no repetition
 - Each section should be 1-3 sentences or a short bullet list at most
-- Re-count every number you write (file counts, function counts, endpoint counts, etc.) by checking the diff, file list, and commit data — never copy a number from the original description without verifying it
-- For the JIRA ID section, output exactly: $JIRA_ID"
+- Verify every number you write (file counts, function counts, endpoint counts, etc.) against the diff, file list, and commits. If a number cannot be verified there (e.g., test assertion counts, runtime measurements), omit it or attribute it as \"per the PR description\"; never present unverified numbers as fact
+- Preserve checklist checkboxes in their original state — leave \`- [ ]\` as \`- [ ]\` and \`- [x]\` as \`- [x]\`. Do not tick boxes on behalf of the author
+- For the JIRA ID section, output exactly the following as a markdown bullet list (one ID per bullet, no extra text):
+$JIRA_IDS_BULLETS"
 
         SQUASH_RULES="- Use the JIRA ID as the subject line prefix instead of a type prefix
 - Subject line format: $JIRA_ID: <short description> (#$PR_NUM)
-- Capitalize first letter of description, imperative mood, no period, max 72 characters
+- Capitalize first letter of description, imperative mood, no period
+- Subject line MUST be ≤ 72 characters total, including the \"$JIRA_ID: \" prefix and the trailing \" (#$PR_NUM)\" — count before you output and shorten the description if needed
 - Include the PR number (#$PR_NUM) at the end of the subject line
 - Body: 1-3 short bullet points summarizing the key changes, separated from subject by a blank line
 - Wrap body lines at 72 characters; break mid-sentence if needed to stay within the limit"
@@ -337,12 +370,14 @@ $DIFF"
 
         MESSAGE_RULES="- Be brief and concise — use short sentences, no filler, no repetition
 - Each section should be 1-3 sentences or a short bullet list at most
-- Re-count every number you write (file counts, function counts, endpoint counts, etc.) by checking the diff, file list, and commit data — never copy a number from the original description without verifying it
-- For the JIRA ID section: if a real JIRA ticket ID (e.g. SWDEV-12345) exists in the PR title or description, output it alone (no prefix); otherwise fill the section with exactly: N/A
+- Verify every number you write (file counts, function counts, endpoint counts, etc.) against the diff, file list, and commits. If a number cannot be verified there (e.g., test assertion counts, runtime measurements), omit it or attribute it as \"per the PR description\"; never present unverified numbers as fact
+- Preserve checklist checkboxes in their original state — leave \`- [ ]\` as \`- [ ]\` and \`- [x]\` as \`- [x]\`. Do not tick boxes on behalf of the author
+- For the JIRA ID section: if real JIRA ticket IDs (e.g. SWDEV-12345) exist in the PR title or description, output them as a markdown bullet list, one ID per bullet (e.g. \`- SWDEV-12345\`). If no real ID exists, output exactly: N/A
 - Ignore any JIRA IDs that appear only inside HTML comments in the template — those are examples, not real IDs"
 
         SQUASH_RULES="- type is one of: feat, fix, refactor, docs, test, chore, style, perf, ci, build
-- Subject line: capitalize first letter, imperative mood, no period, max 72 characters
+- Subject line: capitalize first letter, imperative mood, no period
+- Subject line MUST be ≤ 72 characters total, including the type prefix and the trailing \" (#$PR_NUM)\" — count before you output and shorten the description if needed
 - Include the PR number (#$PR_NUM) at the end of the subject line
 - Body: 1-3 short bullet points summarizing the key changes, separated from subject by a blank line
 - Wrap body lines at 72 characters; break mid-sentence if needed to stay within the limit"
@@ -432,6 +467,18 @@ $CO_AUTHOR_LINES"
         echo "$content" >&2
     }
 
+    # Warn (don't rewrite) if the squash subject overshoots the 72-char rule.
+    warn_long_squash_subject() {
+        local content="$1"
+        [ -z "$content" ] && return
+        local subject
+        subject=$(printf '%s' "$content" | head -n 1)
+        local len=${#subject}
+        if [ "$len" -gt 72 ]; then
+            echo "Warning: squash subject is $len chars (exceeds 72-char limit): $subject" >&2
+        fi
+    }
+
     OUTPUT_TEXT=""
     if [ "$MODE" = "all" ]; then
         # Parse delimited output
@@ -439,12 +486,19 @@ $CO_AUTHOR_LINES"
         MSG_CONTENT=$(echo "$MESSAGE" | sed -n '/===MESSAGE===/,/===SQUASH===/p' | sed '1d;$d')
         SQUASH_CONTENT=$(echo "$MESSAGE" | sed -n '/===SQUASH===/,$p' | sed '1d')
 
-        # Fill empty JIRA ID section with N/A
-        MSG_CONTENT=$(printf '%s' "$MSG_CONTENT" | perl -0pe 's/(## JIRA ID\n)(\n|(?=##))/\1N\/A\n/g')
+        # Fill empty JIRA ID section with detected ID(s) (or N/A if none).
+        # Only matches when the section contains nothing but whitespace up to
+        # the next ## heading or end of input; sections that already contain
+        # content (e.g. the AI-supplied JIRA ID after a blank line) are left
+        # untouched.
+        MSG_CONTENT=$(printf '%s' "$MSG_CONTENT" \
+            | JIRA_FALLBACK="${JIRA_IDS_BULLETS:-N/A}" \
+              perl -0pe 's{(\#\# JIRA ID\n)\s*(?=\#\#|\z)}{$1 . $ENV{JIRA_FALLBACK} . "\n\n"}ge')
 
         [ -n "$TITLE_CONTENT" ] && show_section "PR Title" "$TITLE_CONTENT"
         [ -n "$MSG_CONTENT" ] && show_section "PR Message" "$MSG_CONTENT"
         [ -n "$SQUASH_CONTENT" ] && show_section "Squash Merge Message" "$SQUASH_CONTENT"
+        warn_long_squash_subject "$SQUASH_CONTENT"
 
         OUTPUT_TEXT="===TITLE==="$'\n'"$TITLE_CONTENT"$'\n\n'"===MESSAGE==="$'\n'"$MSG_CONTENT"$'\n\n'"===SQUASH==="$'\n'"$SQUASH_CONTENT"
     elif [ "$MODE" = "title" ]; then
@@ -455,6 +509,7 @@ $CO_AUTHOR_LINES"
         OUTPUT_TEXT="$MESSAGE"
     elif [ "$MODE" = "squash" ]; then
         show_section "Squash Merge Message" "$MESSAGE"
+        warn_long_squash_subject "$MESSAGE"
         OUTPUT_TEXT="$MESSAGE"
     fi
 

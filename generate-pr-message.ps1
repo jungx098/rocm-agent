@@ -138,10 +138,14 @@ try {
         }) -join "`n"
         if ($commitList) { $commitList += "`n" }
         $commitList += $pageList
+        # Exclude commits attributed (via linked GitHub login) to the PR
+        # author — they're the main author, not a co-author.
+        $prAuthorLogin = $pr.user.login
         $pageCommits | ForEach-Object {
             $aName  = $_.commit.author.name
             $aEmail = $_.commit.author.email
-            if ($aName -and $aEmail) {
+            $aLogin = if ($_.author) { $_.author.login } else { "" }
+            if ($aName -and $aEmail -and $aLogin -ne $prAuthorLogin) {
                 $coAuthorSet["$aName <$aEmail>"] = $true
             }
         }
@@ -260,17 +264,37 @@ ${dataNote}
 $diff
 "@
 
-# --- Extract JIRA ID from title or body (ignore HTML comment examples) ---
-$jiraId = $null
+# --- Extract JIRA IDs from title or body (ignore HTML comment examples) ---
+# Collects all unique JIRA IDs in document order (title first, then body).
+# The first ID is used as the title/squash prefix; the full list populates
+# the ## JIRA ID section in the message body.
 $bodyNoComments = $body -replace '(?s)<!--.*?-->', ''
-if ($title -match '([A-Z][A-Z0-9]+-\d+)') {
-    $jiraId = $Matches[1]
-} elseif ($bodyNoComments -match '([A-Z][A-Z0-9]+-\d+)') {
-    $jiraId = $Matches[1]
+$jiraPattern = '[A-Z][A-Z0-9]+-\d+'
+$jiraSeen = @{}
+$jiraIds = @()
+foreach ($source in @($title, $bodyNoComments)) {
+    if (-not $source) { continue }
+    foreach ($m in [regex]::Matches($source, $jiraPattern)) {
+        $id = $m.Value
+        if (-not $jiraSeen.ContainsKey($id)) {
+            $jiraSeen[$id] = $true
+            $jiraIds += $id
+        }
+    }
 }
+$jiraId = if ($jiraIds.Count -gt 0) { $jiraIds[0] } else { $null }
+$jiraIdsList = $jiraIds -join "`n"
+# Markdown bullet form for the ## JIRA ID section
+$jiraIdsBullets = if ($jiraIds.Count -gt 0) {
+    ($jiraIds | ForEach-Object { "- $_" }) -join "`n"
+} else { "" }
 
 if ($jiraId) {
-    Write-Host "Detected JIRA ID: $jiraId" -ForegroundColor Cyan
+    if ($jiraIds.Count -eq 1) {
+        Write-Host "Detected JIRA ID: $jiraId" -ForegroundColor Cyan
+    } else {
+        Write-Host "Detected JIRA IDs: $($jiraIds -join ', ')" -ForegroundColor Cyan
+    }
 
     $titleRules = @"
 - Use the JIRA ID as the title prefix instead of a type prefix
@@ -281,14 +305,17 @@ if ($jiraId) {
     $messageRules = @"
 - Be brief and concise — use short sentences, no filler, no repetition
 - Each section should be 1-3 sentences or a short bullet list at most
-- Re-count every number you write (file counts, function counts, endpoint counts, etc.) by checking the diff, file list, and commit data — never copy a number from the original description without verifying it
-- For the JIRA ID section, output exactly: $jiraId
+- Verify every number you write (file counts, function counts, endpoint counts, etc.) against the diff, file list, and commits. If a number cannot be verified there (e.g., test assertion counts, runtime measurements), omit it or attribute it as "per the PR description"; never present unverified numbers as fact
+- Preserve checklist checkboxes in their original state — leave ``- [ ]`` as ``- [ ]`` and ``- [x]`` as ``- [x]``. Do not tick boxes on behalf of the author
+- For the JIRA ID section, output exactly the following as a markdown bullet list (one ID per bullet, no extra text):
+$jiraIdsBullets
 "@
 
     $squashRules = @"
 - Use the JIRA ID as the subject line prefix instead of a type prefix
 - Subject line format: ${jiraId}: <short description> (#$prNum)
-- Capitalize first letter of description, imperative mood, no period, max 72 characters
+- Capitalize first letter of description, imperative mood, no period
+- Subject line MUST be ≤ 72 characters total, including the "${jiraId}: " prefix and the trailing " (#$prNum)" — count before you output and shorten the description if needed
 - Include the PR number (#$prNum) at the end of the subject line
 - Body: 1-3 short bullet points summarizing the key changes, separated from subject by a blank line
 - Wrap body lines at 72 characters; break mid-sentence if needed to stay within the limit
@@ -303,14 +330,16 @@ if ($jiraId) {
     $messageRules = @"
 - Be brief and concise — use short sentences, no filler, no repetition
 - Each section should be 1-3 sentences or a short bullet list at most
-- Re-count every number you write (file counts, function counts, endpoint counts, etc.) by checking the diff, file list, and commit data — never copy a number from the original description without verifying it
-- For the JIRA ID section: if a real JIRA ticket ID (e.g. SWDEV-12345) exists in the PR title or description, output it alone (no prefix); otherwise fill the section with exactly: N/A
+- Verify every number you write (file counts, function counts, endpoint counts, etc.) against the diff, file list, and commits. If a number cannot be verified there (e.g., test assertion counts, runtime measurements), omit it or attribute it as "per the PR description"; never present unverified numbers as fact
+- Preserve checklist checkboxes in their original state — leave ``- [ ]`` as ``- [ ]`` and ``- [x]`` as ``- [x]``. Do not tick boxes on behalf of the author
+- For the JIRA ID section: if real JIRA ticket IDs (e.g. SWDEV-12345) exist in the PR title or description, output them as a markdown bullet list, one ID per bullet (e.g. ``- SWDEV-12345``). If no real ID exists, output exactly: N/A
 - Ignore any JIRA IDs that appear only inside HTML comments in the template — those are examples, not real IDs
 "@
 
     $squashRules = @"
 - type is one of: feat, fix, refactor, docs, test, chore, style, perf, ci, build
-- Subject line: capitalize first letter, imperative mood, no period, max 72 characters
+- Subject line: capitalize first letter, imperative mood, no period
+- Subject line MUST be ≤ 72 characters total, including the type prefix and the trailing " (#$prNum)" — count before you output and shorten the description if needed
 - Include the PR number (#$prNum) at the end of the subject line
 - Body: 1-3 short bullet points summarizing the key changes, separated from subject by a blank line
 - Wrap body lines at 72 characters; break mid-sentence if needed to stay within the limit
@@ -359,7 +388,9 @@ switch ($Mode) {
 Write-Host "Generating via $Agent (mode: $Mode) ..." -ForegroundColor Cyan
 
 try {
-    if ($Agent -like "*claude*") {
+    if ($Agent -like "*copilot*") {
+        $raw = & $Agent -p $prompt
+    } elseif ($Agent -like "*claude*") {
         $raw = $prompt | & $Agent -p
     } else {
         $raw = $prompt | & $Agent -p --trust
@@ -388,6 +419,15 @@ function Show-Section($header, $color, $content) {
     $content -split "`n" | ForEach-Object { Write-Host $_ }
 }
 
+# Warn (don't rewrite) if the squash subject overshoots the 72-char rule.
+function Test-SquashSubjectLength($content) {
+    if (-not $content) { return }
+    $subject = ($content -split "`r?`n", 2)[0]
+    if ($subject.Length -gt 72) {
+        Write-Warning "Squash subject is $($subject.Length) chars (exceeds 72-char limit): $subject"
+    }
+}
+
 if ($Mode -eq "all") {
     $titleContent  = ""
     $msgContent    = ""
@@ -398,8 +438,17 @@ if ($Mode -eq "all") {
         $msgContent    = $Matches[2].Trim()
         $squashContent = $Matches[3].Trim()
 
-        # Fill empty JIRA ID section with N/A
-        $msgContent = [regex]::Replace($msgContent, '(?m)(## JIRA ID\r?\n)(\r?\n|(?=##))', { param($m) $m.Groups[1].Value + "N/A`n" })
+        # Fill empty JIRA ID section with detected ID(s) (or N/A if none).
+        # Only matches when the section contains nothing but whitespace up to
+        # the next ## heading or end of input; sections that already contain
+        # content (e.g. the AI-supplied JIRA ID after a blank line) are left
+        # untouched.
+        $jiraFallback = if ($jiraIdsBullets) { $jiraIdsBullets } else { "N/A" }
+        $msgContent = [regex]::Replace(
+            $msgContent,
+            '(## JIRA ID\r?\n)\s*(?=##|\z)',
+            ('$1' + $jiraFallback + "`n`n")
+        )
     } else {
         Write-Warning "Could not parse delimited output; showing raw response."
         $titleContent = $message
@@ -408,6 +457,7 @@ if ($Mode -eq "all") {
     if ($titleContent)  { Show-Section "PR Title"              Green  $titleContent  }
     if ($msgContent)    { Show-Section "PR Message"            Green  $msgContent    }
     if ($squashContent) { Show-Section "Squash Merge Message"  Green  $squashContent }
+    Test-SquashSubjectLength $squashContent
 
     $output = @()
     if ($titleContent)  { $output += "===TITLE===";   $output += $titleContent;  $output += "" }
@@ -420,6 +470,7 @@ if ($Mode -eq "all") {
     Show-Section "PR Message" Green $message
 } elseif ($Mode -eq "squash") {
     Show-Section "Squash Merge Message" Green $message
+    Test-SquashSubjectLength $message
 }
 
 # --- Output to file or clipboard ---

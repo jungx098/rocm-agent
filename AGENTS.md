@@ -68,7 +68,11 @@ Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `style`, `perf`, `ci`
 
 ### JIRA ID handling in PR tools
 
-PR tools detect JIRA IDs (pattern `[A-Z][A-Z0-9]+-[0-9]+`) from the PR title or body (ignoring HTML comments). When found, the JIRA ID replaces the Conventional Commits type prefix in generated titles, e.g., `SWDEV-12345: Add feature (#1801)`.
+PR tools detect **all** JIRA IDs (pattern `[A-Z][A-Z0-9]+-[0-9]+`) in the PR title and body (ignoring HTML comments) and de-duplicate them in document order (title first, then body). The **first** ID replaces the Conventional Commits type prefix in the generated title and squash subject, e.g., `SWDEV-12345: Add feature (#1801)`. The **full list** populates the `## JIRA ID` section of the message body as a markdown bullet list (`- SWDEV-12345`), one ID per bullet. If no IDs are found, that section gets a plain `N/A`.
+
+### Co-author handling in PR tools
+
+The squash-merge message includes `Co-authored-by:` trailers for every distinct git author in the PR's commits — **except** the PR author themselves. The PR author is identified by matching each commit's linked GitHub account (`.author.login`) against the PR's `user.login`; commits without a linked GitHub account are still treated as co-authors.
 
 ### Default diff truncation limits
 
