@@ -194,7 +194,7 @@ if [ $USE_NATIVE -eq 1 ]; then
         MESSAGE=$(echo "$RAW_OUTPUT" | awk '
             BEGIN { in_message = 0; message = ""; }
             # Skip usage stats and tool execution lines
-            /^Total usage est:|^API time spent:|^Total session time:|^Total code changes:|^Breakdown by AI model:|^ claude-|^ gpt-|^●|^  \$|^  └/ { next; }
+            /^Total usage est:|^API time spent:|^Total session time:|^Total code changes:|^Breakdown by AI model:|^[[:space:]]*AI Credits([[:space:]]|:|$)|^ claude-|^ gpt-|^●|^  \$|^  └/ { next; }
             # Skip empty lines before the message starts
             /^[[:space:]]*$/ && in_message == 0 { next; }
             # Once we hit content (markdown heading), start collecting
