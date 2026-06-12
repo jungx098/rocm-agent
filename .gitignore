@@ -1,0 +1,5 @@
+# Local, machine-specific agent settings (Claude Code convention)
+.claude/settings.local.json
+
+# Personal diagnostic / scratch notes (not part of the project)
+SYSTEM-SLOWNESS-ISSUE.md
