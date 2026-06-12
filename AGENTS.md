@@ -94,3 +94,9 @@ git config core.hooksPath .githooks
 ```
 
 To test the hook locally, stage a small `.sh` file with deliberate syntax errors (for example a missing `fi`); `git commit` should fail until you fix or unstage it.
+
+## Troubleshooting
+
+### Benign `could not open directory '.claude/skills/...'` warning on commit
+
+`ai-commit` runs `git commit -e`, whose editor status template triggers an untracked-file scan of the tracked `.claude/skills/` directory. The AI agent that writes the message (e.g. Copilot CLI) transiently creates and removes *user-scoped* skill dirs (`brainstorming`, `find-skills`, `using-superpowers`, …) there. With git's untracked cache on (`core.untrackedCache`, enabled by `feature.manyFiles`), the scan trusts the stale cache and tries to `opendir()` those now-deleted entries, printing `warning: could not open directory '.claude/skills/<name>/': No such file or directory`. It is harmless — the commit succeeds — and self-healing, since the scan refreshes the cache and a later plain `git status` is clean. Permanently silence with `git config core.untrackedCache false`. Do **not** gitignore `.claude/skills/`; it holds tracked project skills.

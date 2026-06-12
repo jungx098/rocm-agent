@@ -293,3 +293,25 @@ export AGENT=claude  # Set for all subsequent commands
 - Shell scripts automatically fall back to PowerShell implementations
 - Requires PowerShell 5.1+ or PowerShell Core (pwsh)
 - Uses `Set-Clipboard` for clipboard integration
+
+## Troubleshooting
+
+### `warning: could not open directory '.claude/skills/...'` when committing
+
+Running `ai-commit` may print warnings such as:
+
+```
+warning: could not open directory '.claude/skills/brainstorming/': No such file or directory
+```
+
+**These are harmless — the commit still succeeds.** They come from git itself, not from these scripts.
+
+`ai-commit` runs `git commit -e`, which builds the editor's commented status template by scanning for untracked files. As part of that scan git walks into the tracked `.claude/skills/` directory. Meanwhile, the AI agent invoked to write the message (e.g. Copilot CLI) transiently creates and removes *user-scoped* skill directories (`brainstorming`, `find-skills`, `using-superpowers`, …) under `.claude/skills/`. With git's untracked cache enabled (`core.untrackedCache`, typically turned on by `feature.manyFiles`), the scan trusts the cached directory listing and tries to `opendir()` those already-deleted directories, emitting the warning. The same scan refreshes the cache, so the warning is self-healing — a subsequent plain `git status` will not repeat it.
+
+To silence it permanently, disable the untracked cache for this repo:
+
+```bash
+git config core.untrackedCache false
+```
+
+Do **not** add `.claude/skills/` to `.gitignore` — the project skills under that directory are tracked.
