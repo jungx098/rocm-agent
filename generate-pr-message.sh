@@ -431,6 +431,7 @@ $CO_AUTHOR_LINES"
         MESSAGE=$(echo "$RAW_OUTPUT" | awk '
             BEGIN { in_message = 0; message = ""; }
             /^Total usage est:|^API time spent:|^Total session time:|^Total code changes:|^Breakdown by AI model:|^[[:space:]]*AI Credits([[:space:]]|:|$)|^ claude-|^ gpt-|^●|^  \$|^  └/ { next; }
+            /copilot --resume=/ { next; }
             /^[[:space:]]*$/ && in_message == 0 { next; }
             in_message == 1 && /^Changes[[:space:]]+[+-][0-9]|^Requests[[:space:]]+[0-9]|^Tokens[[:space:]]/ { next; }
             /===TITLE===|===MESSAGE===|===SQUASH===|^[a-z]+:/ || in_message == 1 { 

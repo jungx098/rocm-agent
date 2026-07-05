@@ -125,7 +125,8 @@ if ($mode -eq "amend") {
     $stat = git diff --cached $amendBase --stat
     $fileList = git diff --cached $amendBase --name-status | ForEach-Object { & $parseFileStatus $_ }
     $existingMsg = git log -1 --format="%B" HEAD
-    $existingMsg = ($existingMsg | Out-String).Trim()
+    $existingMsg = (($existingMsg | Out-String).Trim() -split "`n" | Where-Object { $_ -notmatch 'copilot --resume=' }) -join "`n"
+    $existingMsg = $existingMsg.Trim()
 } elseif ($mode -eq "range") {
     $diff = git diff "$CommitHash" "$CommitHash2"
     $stat = git diff "$CommitHash" "$CommitHash2" --stat
@@ -139,7 +140,8 @@ if ($mode -eq "amend") {
     $stat = git diff $commitBase "$CommitHash" --stat
     $fileList = git diff $commitBase "$CommitHash" --name-status | ForEach-Object { & $parseFileStatus $_ }
     $existingMsg = git log -1 --format="%B" "$CommitHash"
-    $existingMsg = ($existingMsg | Out-String).Trim()
+    $existingMsg = (($existingMsg | Out-String).Trim() -split "`n" | Where-Object { $_ -notmatch 'copilot --resume=' }) -join "`n"
+    $existingMsg = $existingMsg.Trim()
 } else {
     $diff = git diff --cached
     $stat = git diff --cached --stat
@@ -206,13 +208,14 @@ if ($Agent -like "*copilot*") {
         $_ -notmatch '^Total usage est:|^API time spent:|^Total session time:|^Total code changes:|^Breakdown by AI model:|^\s*AI Credits(\s|:|$)|^ claude-|^ gpt-|^●|^  \$|^  └' -and
         $_ -notmatch '^\s*Changes\s+[+-][0-9]' -and
         $_ -notmatch '^\s*Requests\s+[0-9]' -and
-        $_ -notmatch '^\s*Tokens\s'
+        $_ -notmatch '^\s*Tokens\s' -and
+        $_ -notmatch 'copilot --resume='
     }) -join "`n"
 }
 
 # --- Sanitize AI output (strip preamble, fences, postamble) ---
 $lines = $message -split "`n"
-$lines = $lines | Where-Object { $_ -notmatch '^\s*```' }
+$lines = $lines | Where-Object { $_ -notmatch '^\s*```' -and $_ -notmatch 'copilot --resume=' }
 
 $commitTypeRe = '^(feat|fix|refactor|docs|test|chore|style|perf|ci|build)(\(.+?\))?!?:'
 $startIdx = -1

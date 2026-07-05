@@ -407,7 +407,8 @@ if ($Agent -like "*copilot*") {
         $_ -notmatch '^Total usage est:|^API time spent:|^Total session time:|^Total code changes:|^Breakdown by AI model:|^\s*AI Credits(\s|:|$)|^ claude-|^ gpt-|^●|^  \$|^  └' -and
         $_ -notmatch '^\s*Changes\s+[+-][0-9]' -and
         $_ -notmatch '^\s*Requests\s+[0-9]' -and
-        $_ -notmatch '^\s*Tokens\s'
+        $_ -notmatch '^\s*Tokens\s' -and
+        $_ -notmatch 'copilot --resume='
     }) -join "`n"
 }
 

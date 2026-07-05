@@ -210,6 +210,9 @@ try {
             if ($line -match '^Total usage est:|^API time spent:|^Total session time:|^Total code changes:|^Breakdown by AI model:|^\s*AI Credits(\s|:|$)|^ claude-|^ gpt-|^●|^  \$|^  └') {
                 continue
             }
+            if ($line -match 'copilot --resume=') {
+                continue
+            }
             # Copilot CLI trailing usage (diff/stats/tokens)
             if ($InMessage -and $line -match '^\s*Changes\s+[+-][0-9]|^\s*Requests\s+[0-9]|^\s*Tokens\s') {
                 continue
