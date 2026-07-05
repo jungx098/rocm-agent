@@ -195,7 +195,7 @@ if [ $USE_NATIVE -eq 1 ]; then
             BEGIN { in_message = 0; message = ""; }
             # Skip usage stats and tool execution lines
             /^Total usage est:|^API time spent:|^Total session time:|^Total code changes:|^Breakdown by AI model:|^[[:space:]]*AI Credits([[:space:]]|:|$)|^ claude-|^ gpt-|^●|^  \$|^  └/ { next; }
-            /copilot --resume=/ { next; }
+            /^Resume[[:space:]]+copilot --resume=/ { next; }
             # Skip empty lines before the message starts
             /^[[:space:]]*$/ && in_message == 0 { next; }
             # Once we hit content (markdown heading), start collecting

@@ -125,7 +125,7 @@ if ($mode -eq "amend") {
     $stat = git diff --cached $amendBase --stat
     $fileList = git diff --cached $amendBase --name-status | ForEach-Object { & $parseFileStatus $_ }
     $existingMsg = git log -1 --format="%B" HEAD
-    $existingMsg = (($existingMsg | Out-String).Trim() -split "`n" | Where-Object { $_ -notmatch 'copilot --resume=' }) -join "`n"
+    $existingMsg = (($existingMsg | Out-String).Trim() -split "`n" | Where-Object { $_ -notmatch '^\s*Resume\s+copilot --resume=' }) -join "`n"
     $existingMsg = $existingMsg.Trim()
 } elseif ($mode -eq "range") {
     $diff = git diff "$CommitHash" "$CommitHash2"
@@ -140,7 +140,7 @@ if ($mode -eq "amend") {
     $stat = git diff $commitBase "$CommitHash" --stat
     $fileList = git diff $commitBase "$CommitHash" --name-status | ForEach-Object { & $parseFileStatus $_ }
     $existingMsg = git log -1 --format="%B" "$CommitHash"
-    $existingMsg = (($existingMsg | Out-String).Trim() -split "`n" | Where-Object { $_ -notmatch 'copilot --resume=' }) -join "`n"
+    $existingMsg = (($existingMsg | Out-String).Trim() -split "`n" | Where-Object { $_ -notmatch '^\s*Resume\s+copilot --resume=' }) -join "`n"
     $existingMsg = $existingMsg.Trim()
 } else {
     $diff = git diff --cached
@@ -209,13 +209,13 @@ if ($Agent -like "*copilot*") {
         $_ -notmatch '^\s*Changes\s+[+-][0-9]' -and
         $_ -notmatch '^\s*Requests\s+[0-9]' -and
         $_ -notmatch '^\s*Tokens\s' -and
-        $_ -notmatch 'copilot --resume='
+        $_ -notmatch '^\s*Resume\s+copilot --resume='
     }) -join "`n"
 }
 
 # --- Sanitize AI output (strip preamble, fences, postamble) ---
 $lines = $message -split "`n"
-$lines = $lines | Where-Object { $_ -notmatch '^\s*```' -and $_ -notmatch 'copilot --resume=' }
+$lines = $lines | Where-Object { $_ -notmatch '^\s*```' -and $_ -notmatch '^\s*Resume\s+copilot --resume=' }
 
 $commitTypeRe = '^(feat|fix|refactor|docs|test|chore|style|perf|ci|build)(\(.+?\))?!?:'
 $startIdx = -1

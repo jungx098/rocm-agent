@@ -150,7 +150,7 @@ if [ $USE_NATIVE -eq 1 ]; then
         FILE_LIST=$(git diff --cached "$AMEND_BASE" --name-status | while IFS=$'\t' read -r status file; do
             parse_file_status "$status" "$file"
         done)
-        EXISTING_MSG=$(git log -1 --format="%B" HEAD | sed '/^$/d' | { grep -v 'copilot --resume=' || true; })
+        EXISTING_MSG=$(git log -1 --format="%B" HEAD | sed '/^$/d' | { grep -vE '^Resume[[:space:]]+copilot --resume=' || true; })
     elif [ "$MODE" = "range" ]; then
         DIFF=$(git diff "$COMMIT_HASH" "$COMMIT_HASH2")
         STAT=$(git diff "$COMMIT_HASH" "$COMMIT_HASH2" --stat)
@@ -165,7 +165,7 @@ if [ $USE_NATIVE -eq 1 ]; then
         FILE_LIST=$(git diff "$COMMIT_BASE" "$COMMIT_HASH" --name-status | while IFS=$'\t' read -r status file; do
             parse_file_status "$status" "$file"
         done)
-        EXISTING_MSG=$(git log -1 --format="%B" "$COMMIT_HASH" | sed '/^$/d' | { grep -v 'copilot --resume=' || true; })
+        EXISTING_MSG=$(git log -1 --format="%B" "$COMMIT_HASH" | sed '/^$/d' | { grep -vE '^Resume[[:space:]]+copilot --resume=' || true; })
     else
         DIFF=$(git diff --cached | tr -d '\0')
         STAT=$(git diff --cached --stat)
@@ -219,7 +219,7 @@ if [ $USE_NATIVE -eq 1 ]; then
             BEGIN { in_message = 0; message = ""; }
             # Skip usage stats and tool execution lines
             /^Total usage est:|^API time spent:|^Total session time:|^Total code changes:|^Breakdown by AI model:|^[[:space:]]*AI Credits([[:space:]]|:|$)|^ claude-|^ gpt-|^●|^  \$|^  └/ { next; }
-            /copilot --resume=/ { next; }
+            /^Resume[[:space:]]+copilot --resume=/ { next; }
             # Skip empty lines before the message starts
             /^[[:space:]]*$/ && in_message == 0 { next; }
             # Once we hit content (commit type or already in message), start collecting
@@ -253,7 +253,7 @@ if [ $USE_NATIVE -eq 1 ]; then
 
     # --- Sanitize AI output (strip preamble, fences, postamble) ---
     # `|| true` keeps grep's exit-1-on-no-match from tripping pipefail.
-    MESSAGE=$(echo "$MESSAGE" | { grep -v '^\s*```' || true; } | { grep -v 'copilot --resume=' || true; })
+    MESSAGE=$(echo "$MESSAGE" | { grep -v '^\s*```' || true; } | { grep -vE '^Resume[[:space:]]+copilot --resume=' || true; })
 
     COMMIT_TYPE_RE='^(feat|fix|refactor|docs|test|chore|style|perf|ci|build)(\(.+\))?!?:'
     FIRST_LINE=$(echo "$MESSAGE" | grep -n -E "$COMMIT_TYPE_RE" | head -1 | cut -d: -f1 || true)

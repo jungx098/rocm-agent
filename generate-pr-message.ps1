@@ -408,7 +408,7 @@ if ($Agent -like "*copilot*") {
         $_ -notmatch '^\s*Changes\s+[+-][0-9]' -and
         $_ -notmatch '^\s*Requests\s+[0-9]' -and
         $_ -notmatch '^\s*Tokens\s' -and
-        $_ -notmatch 'copilot --resume='
+        $_ -notmatch '^\s*Resume\s+copilot --resume='
     }) -join "`n"
 }
 
