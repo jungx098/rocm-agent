@@ -331,13 +331,13 @@ if [ $USE_NATIVE -eq 1 ]; then
         echo "" >&2
         echo "Saved to $OUTPUT_FILE" >&2
     else
-        # Try to copy to clipboard (macOS/Linux)
-        if command -v pbcopy >/dev/null 2>&1; then
-            echo "$MESSAGE" | pbcopy
+        # Try to copy to clipboard (macOS/Linux). The copy runs inside the
+        # condition so a failure is not fatal under 'set -e' -- e.g. xclip
+        # installed but no X display when running over SSH.
+        if command -v pbcopy >/dev/null 2>&1 && echo "$MESSAGE" | pbcopy 2>/dev/null; then
             echo "" >&2
             echo "Copied to clipboard." >&2
-        elif command -v xclip >/dev/null 2>&1; then
-            echo "$MESSAGE" | xclip -selection clipboard
+        elif command -v xclip >/dev/null 2>&1 && echo "$MESSAGE" | xclip -selection clipboard 2>/dev/null; then
             echo "" >&2
             echo "Copied to clipboard." >&2
         fi
