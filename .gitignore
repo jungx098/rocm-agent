@@ -3,3 +3,6 @@
 
 # Personal diagnostic / scratch notes (not part of the project)
 SYSTEM-SLOWNESS-ISSUE.md
+
+# Personal, machine-scoped Cursor skills; project skills live in .claude/skills/
+.cursor/skills/
